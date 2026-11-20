@@ -92,7 +92,7 @@
 
 ### 1. Clone & Install Dependencies
 ```bash
-git clone git@github.com:iamcristian/inside-link.git
+git clone git@github.com:cristianarando/inside-link.git
 cd inside-link
 pnpm install
 ```
