@@ -2,12 +2,22 @@ import { after, type NextRequest } from "next/server";
 import { renderExpiredLinkHtml } from "@/components/hub/expired-link-view";
 import { renderHubLandingHtml } from "@/components/hub/hub-landing-view";
 import { renderPinUnlockHtml } from "@/components/hub/pin-unlock-form";
+import { getCanonicalBaseUrl } from "@/server/og/presentation";
 import { resolutionService } from "@/server/services";
 import { escapeHtml, getPortfolioBaseUrl, renderOpenGraphHtml } from "@/server/services/og-render.service";
 import type { ResolutionService } from "@/server/services/resolution.service";
 
+function getCanonicalHostLabel(): string {
+  try {
+    return new URL(getCanonicalBaseUrl()).host;
+  } catch {
+    return "links.cristianarando.dev";
+  }
+}
+
 function renderNotFoundHtml(slug: string): string {
   const baseUrl = escapeHtml(getPortfolioBaseUrl());
+  const canonicalHost = escapeHtml(getCanonicalHostLabel());
   return `<!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
@@ -15,16 +25,16 @@ function renderNotFoundHtml(slug: string): string {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="robots" content="noindex, nofollow" />
   <link rel="icon" href="/brand/logo-qr.svg" type="image/svg+xml" />
-  <title>Short link not found — links.cristianarando.dev</title>
+  <title>Short link not found — ${canonicalHost}</title>
   <style>
     body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#09090b;color:#fafafa;font-family:system-ui,-apple-system,sans-serif;padding:16px}
     .card{max-width:420px;width:100%;border:1px solid #27272a;background:rgba(24,24,27,.75);border-radius:16px;padding:32px;text-align:center;box-shadow:0 24px 48px rgba(0,0,0,.5)}
-    .badge{font-family:ui-monospace,monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#a1a1aa}
+    .badge{font-family:ui-monospace,monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#6ee7b7}
     h1{margin:10px 0 12px;font-size:22px;font-weight:600}
     p{margin:0 0 24px;font-size:14px;line-height:1.6;color:#a1a1aa}
     .actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
     a.btn{display:inline-flex;align-items:center;padding:10px 16px;border-radius:12px;font-size:14px;font-weight:500;text-decoration:none}
-    a.primary{background:#fafafa;color:#09090b}
+    a.primary{background:#10b981;color:#052e16;font-weight:600}
     a.secondary{border:1px solid #3f3f46;color:#e4e4e7;background:#18181b}
   </style>
 </head>
@@ -32,7 +42,7 @@ function renderNotFoundHtml(slug: string): string {
   <main class="card">
     <div class="badge">HTTP 404 · Not Found</div>
     <h1>This short link does not exist</h1>
-    <p>The route /${escapeHtml(slug)} is not registered on links.cristianarando.dev.</p>
+    <p>The route /${escapeHtml(slug)} is not registered on ${canonicalHost}.</p>
     <div class="actions">
       <a class="btn primary" href="${baseUrl}">Back to cristianarando.dev</a>
       <a class="btn secondary" href="/">Browse public links</a>

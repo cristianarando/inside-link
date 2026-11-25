@@ -2,7 +2,9 @@ import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { isPrefetchRequest, isSocialPreviewBot } from "@/lib/bot-detector";
 import { verifyPin } from "@/server/crypto/pin";
+import { createPinUnlockCookieHeader } from "@/server/crypto/pin-token";
 import {
   checkPinRateLimit,
   extractClientIdentifier,
@@ -12,10 +14,14 @@ import {
 import { db } from "@/server/db";
 import { links } from "@/server/db/schema";
 import { resolutionService, toLinkDTO, type AppDatabase } from "@/server/services";
-import type { ResolutionService } from "@/server/services/resolution.service";
+import {
+  buildDestinationUrl,
+  type ResolutionService,
+} from "@/server/services/resolution.service";
 
 const UnlockBodySchema = z.object({
-  pin: z.string().trim().min(1, "El PIN es obligatorio").max(64),
+  pin: z.string().trim().min(1, "PIN is required").max(64),
+  query: z.string().max(2048).optional(),
 });
 
 export async function handlePinUnlockPost(
@@ -35,7 +41,7 @@ export async function handlePinUnlockPost(
     rawBody = await request.json();
   } catch {
     return NextResponse.json(
-      { error: { code: "INVALID_JSON", message: "Cuerpo JSON inválido" } },
+      { error: { code: "INVALID_JSON", message: "Invalid JSON body" } },
       { status: 400 }
     );
   }
@@ -43,7 +49,7 @@ export async function handlePinUnlockPost(
   const parsed = UnlockBodySchema.safeParse(rawBody);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: { code: "VALIDATION_ERROR", message: "Formato de PIN inválido" } },
+      { error: { code: "VALIDATION_ERROR", message: "PIN is required" } },
       { status: 400 }
     );
   }
@@ -58,7 +64,7 @@ export async function handlePinUnlockPost(
 
   if (!row) {
     return NextResponse.json(
-      { error: { code: "NOT_FOUND", message: "Enlace no encontrado" } },
+      { error: { code: "NOT_FOUND", message: "Short link not found" } },
       { status: 404 }
     );
   }
@@ -70,14 +76,14 @@ export async function handlePinUnlockPost(
     (row.maxClicks !== null && row.clicksCount >= row.maxClicks)
   ) {
     return NextResponse.json(
-      { error: { code: "LINK_INACTIVE_OR_EXPIRED", message: "Este enlace ya no está activo" } },
+      { error: { code: "LINK_INACTIVE_OR_EXPIRED", message: "This link is no longer active" } },
       { status: 410 }
     );
   }
 
   if (!row.passwordHash) {
     return NextResponse.json(
-      { error: { code: "PIN_NOT_CONFIGURED", message: "Este enlace no requiere PIN" } },
+      { error: { code: "PIN_NOT_CONFIGURED", message: "This link does not require a PIN" } },
       { status: 400 }
     );
   }
@@ -89,7 +95,7 @@ export async function handlePinUnlockPost(
       {
         error: {
           code: "RATE_LIMIT_EXCEEDED",
-          message: `Demasiados intentos fallidos. Intenta de nuevo en ${rateLimit.retryAfterSeconds}s.`,
+          message: `Too many failed attempts. Try again in ${rateLimit.retryAfterSeconds}s.`,
           retryAfterSeconds: rateLimit.retryAfterSeconds,
         },
       },
@@ -110,7 +116,7 @@ export async function handlePinUnlockPost(
       {
         error: {
           code: "INVALID_PIN",
-          message: "PIN incorrecto",
+          message: "Incorrect PIN",
           remainingAttempts: failed.remainingAttempts,
         },
       },
@@ -121,13 +127,49 @@ export async function handlePinUnlockPost(
     );
   }
 
-  // PIN válido: limpiamos contadores de intentos fallidos y registramos el clic válido
-  await resetPinAttempts(deps.db, row.id, clientIp);
-  await deps.resolution.recordClickEvent({
+  const rawQuery = parsed.data.query?.replace(/^\?/, "") ?? "";
+  const incomingParams = rawQuery
+    ? new URLSearchParams(rawQuery)
+    : new URL(request.url).searchParams;
+
+  let finalDestination: string | null = null;
+  if (row.type === "DIRECT") {
+    if (!row.destinationUrl) {
+      return NextResponse.json(
+        { error: { code: "NOT_FOUND", message: "Short link not found" } },
+        { status: 404 }
+      );
+    }
+    try {
+      finalDestination = buildDestinationUrl(
+        row.destinationUrl,
+        incomingParams,
+        row.forwardQueryParams
+      );
+    } catch {
+      return NextResponse.json(
+        { error: { code: "INVALID_DESTINATION", message: "Invalid destination URL" } },
+        { status: 400 }
+      );
+    }
+  }
+
+  // Valid PIN: clear failed attempt counters and record the visit atomically.
+  await resetPinAttempts(deps.db, row.id, clientIp, now);
+  const recorded = await deps.resolution.recordClickEvent({
     linkId: row.id,
     headers: request.headers,
+    searchParams: incomingParams,
     now,
   });
+
+  const ua = request.headers.get("user-agent");
+  if (!isSocialPreviewBot(ua) && !isPrefetchRequest(request.headers) && !recorded) {
+    return NextResponse.json(
+      { error: { code: "LINK_INACTIVE_OR_EXPIRED", message: "This link is no longer active" } },
+      { status: 410, headers: { "Cache-Control": "private, no-store" } }
+    );
+  }
 
   const dto = toLinkDTO(row, now);
   return NextResponse.json(
@@ -135,13 +177,16 @@ export async function handlePinUnlockPost(
       data: {
         slug: dto.slug,
         type: dto.type,
-        destinationUrl: dto.type === "DIRECT" ? dto.destinationUrl : null,
+        destinationUrl: dto.type === "DIRECT" ? finalDestination : null,
         hubLinks: dto.type === "HUB" ? dto.hubLinks : null,
       },
     },
     {
       status: 200,
-      headers: { "Cache-Control": "private, no-store" },
+      headers: {
+        "Cache-Control": "private, no-store",
+        "Set-Cookie": createPinUnlockCookieHeader(row.id, row.passwordHash, now),
+      },
     }
   );
 }

@@ -2,6 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { monotonicFactory } from "ulidx";
 
 import { clickEvents, links, type Link } from "../db/schema";
+import { hasValidPinUnlockCookie } from "../crypto/pin-token";
 import { isPrefetchRequest, isSocialPreviewBot } from "@/lib/bot-detector";
 import { isReservedSlug } from "@/lib/constants/reserved-slugs";
 import { extractTrafficMetadata } from "@/lib/geo-headers";
@@ -110,7 +111,7 @@ export function buildDestinationUrl(
 ): string {
   const target = new URL(baseDestination);
   if (target.protocol !== "http:" && target.protocol !== "https:") {
-    throw new Error("Protocolo de destino no permitido");
+    throw new Error("Destination protocol not allowed");
   }
 
   if (forwardQueryParams) {
@@ -179,6 +180,21 @@ export function createResolutionService(db: AppDatabase) {
     }
 
     if (row.passwordHash !== null) {
+      const hasUnlockCookie = hasValidPinUnlockCookie(
+        options.headers,
+        row.id,
+        row.passwordHash,
+        now
+      );
+      if (hasUnlockCookie && row.type === "HUB") {
+        return {
+          kind: "HUB_VIEW",
+          status: 200,
+          linkId: row.id,
+          link: toLinkDTO(row, now),
+          shouldTrackClick: false,
+        };
+      }
       return {
         kind: "PIN_REQUIRED",
         status: 200,
@@ -237,9 +253,10 @@ export function createResolutionService(db: AppDatabase) {
   }
 
   /**
-   * Incrementa atómicamente `clicks_count` y registra una fila en `click_events`.
-   * Respeta el límite `max_clicks` y `expires_at` en la propia sentencia UPDATE.
-   * Nunca lanza errores hacia el caller para no afectar el flujo de redirección.
+   * Atomically increments `clicks_count` for primary visits and inserts a `click_events` row.
+   * For HUB sub-link clicks (`subLinkId` provided), validates active status and time expiration
+   * without incrementing `clicks_count` or blocking on `max_clicks`.
+   * Never updates `links.updatedAt` and never throws to callers.
    */
   async function recordClickEvent(input: RecordClickInput): Promise<boolean> {
     try {
@@ -250,23 +267,41 @@ export function createResolutionService(db: AppDatabase) {
       const now = input.now ?? new Date();
       const nowMs = now.getTime();
 
-      const updateResult = await db
-        .update(links)
-        .set({
-          clicksCount: sql`${links.clicksCount} + 1`,
-          updatedAt: now,
-        })
-        .where(
-          and(
-            eq(links.id, input.linkId),
-            eq(links.isActive, true),
-            sql`(${links.expiresAt} IS NULL OR ${links.expiresAt} > ${nowMs})`,
-            sql`(${links.maxClicks} IS NULL OR ${links.clicksCount} < ${links.maxClicks})`
+      if (input.subLinkId) {
+        const activeHub = await db
+          .select({ id: links.id })
+          .from(links)
+          .where(
+            and(
+              eq(links.id, input.linkId),
+              eq(links.type, "HUB"),
+              eq(links.isActive, true),
+              sql`(${links.expiresAt} IS NULL OR ${links.expiresAt} > ${nowMs})`
+            )
           )
-        );
+          .limit(1);
 
-      if (updateResult.rowsAffected === 0) {
-        return false;
+        if (!activeHub[0]) {
+          return false;
+        }
+      } else {
+        const updateResult = await db
+          .update(links)
+          .set({
+            clicksCount: sql`${links.clicksCount} + 1`,
+          })
+          .where(
+            and(
+              eq(links.id, input.linkId),
+              eq(links.isActive, true),
+              sql`(${links.expiresAt} IS NULL OR ${links.expiresAt} > ${nowMs})`,
+              sql`(${links.maxClicks} IS NULL OR ${links.clicksCount} < ${links.maxClicks})`
+            )
+          );
+
+        if (updateResult.rowsAffected === 0) {
+          return false;
+        }
       }
 
       const meta = extractTrafficMetadata(input.headers ?? {}, input.searchParams);

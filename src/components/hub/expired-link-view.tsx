@@ -1,6 +1,15 @@
 import React from "react";
 import type { InactiveReason } from "@/server/services/resolution.service";
+import { getCanonicalBaseUrl } from "@/server/og/presentation";
 import { escapeHtml, getPortfolioBaseUrl } from "@/server/services/og-render.service";
+
+function getCanonicalHostLabel(): string {
+  try {
+    return new URL(getCanonicalBaseUrl()).host;
+  } catch {
+    return "links.cristianarando.dev";
+  }
+}
 
 export interface ExpiredLinkCopy {
   badge: string;
@@ -39,6 +48,7 @@ export function renderExpiredLinkHtml(params: {
 }): string {
   const copy = getExpiredLinkCopy(params.reason);
   const baseUrl = escapeHtml(getPortfolioBaseUrl());
+  const canonicalHost = escapeHtml(getCanonicalHostLabel());
 
   return `<!DOCTYPE html>
 <html lang="en" class="dark">
@@ -47,7 +57,7 @@ export function renderExpiredLinkHtml(params: {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="robots" content="noindex, nofollow" />
   <link rel="icon" href="/brand/logo-qr.svg" type="image/svg+xml" />
-  <title>${escapeHtml(copy.heading)} — links.cristianarando.dev</title>
+  <title>${escapeHtml(copy.heading)} — ${canonicalHost}</title>
   <style>
     body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#09090b;color:#fafafa;font-family:system-ui,-apple-system,sans-serif;padding:16px}
     .card{max-width:440px;width:100%;border:1px solid #27272a;background:rgba(24,24,27,.85);border-radius:18px;padding:32px;text-align:center;box-shadow:0 24px 48px rgba(0,0,0,.5)}
@@ -57,7 +67,7 @@ export function renderExpiredLinkHtml(params: {
     p{margin:0 0 24px;font-size:14px;line-height:1.6;color:#a1a1aa}
     .actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
     a.btn{display:inline-flex;align-items:center;padding:10px 16px;border-radius:12px;font-size:14px;font-weight:500;text-decoration:none}
-    a.primary{background:#fafafa;color:#09090b}
+    a.primary{background:#10b981;color:#052e16;font-weight:600}
     a.secondary{border:1px solid #3f3f46;color:#e4e4e7;background:#18181b}
   </style>
 </head>
