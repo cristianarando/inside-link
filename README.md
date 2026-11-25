@@ -1,4 +1,4 @@
-# InsideLink — Custom Link Shortener, Project Hubs & `/links` Directory
+# InsideLink — Custom Link Shortener, Project Hubs & Public Directory
 
 [![Next.js 16](https://img.shields.io/badge/Next.js-16.4.3-black?style=flat&logo=next.js)](https://nextjs.org/)
 [![React 19](https://img.shields.io/badge/React-19.3.0-blue?style=flat&logo=react)](https://react.dev/)
@@ -6,38 +6,38 @@
 [![Drizzle ORM](https://img.shields.io/badge/Drizzle_ORM-0.45.4-C5F74F?style=flat&logo=drizzle)](https://orm.drizzle.team/)
 [![Tailwind CSS v4](https://img.shields.io/badge/Tailwind_CSS-v4-38B2AC?style=flat&logo=tailwind-css)](https://tailwindcss.com/)
 [![Better-Auth](https://img.shields.io/badge/Auth-Better--Auth%20GitHub-purple?style=flat)](https://www.better-auth.com/)
-[![Vitest](https://img.shields.io/badge/Tests-78%20Passing-success?style=flat&logo=vitest)](https://vitest.dev/)
-[![Status](https://img.shields.io/badge/Production-Live%20on%20cristianarando.dev-emerald?style=flat)](https://www.cristianarando.dev/links/)
+[![Vitest](https://img.shields.io/badge/Tests-90%20Passing-success?style=flat&logo=vitest)](https://vitest.dev/)
+[![Status](https://img.shields.io/badge/Production-Live%20on%20links.cristianarando.dev-emerald?style=flat)](https://links.cristianarando.dev/)
 
-**InsideLink** is a self-hosted, single-owner link shortening platform, project micro-landing hub (`type = 'HUB'`), vector QR code generator, and public directory (`/links`) engineered to co-exist natively under the primary domain **`https://cristianarando.dev`**.
+**InsideLink** is a self-hosted, single-owner link shortening platform, project micro-landing hub (`type = 'HUB'`), branded vector/PNG QR code studio, and public directory (`/`) deployed standalone on **`https://links.cristianarando.dev`** alongside the primary portfolio **`https://cristianarando.dev`**.
 
 ---
 
 ## 📸 Visual Showcase
 
 ### 1. Private Admin Console (`/admin`)
-*Manage shortlinks with real-time slug collision checks, live search debouncing, custom icon selector, and instant QR generation.*
+*Manage shortlinks with real-time slug collision checks, live search debouncing, custom icon selector, Magic URL metadata preview, and instant QR generation.*
 
 ![InsideLink Admin Dashboard](docs/screenshots/admin-dashboard.png)
 
 ---
 
 ### 2. Global Analytics & Telemetry (`/admin/analytics`)
-*Zero-raw-IP privacy-first telemetry with interactive daily click trends, geographic breakdown, device/OS distribution, and top referrers.*
+*Zero-raw-IP privacy-first telemetry powered by `O(1)` SQLite aggregations, interactive 7d/30d/90d click trends with period-over-period delta, HUB button CTR, `?ref=` campaign attribution, and UTF-8 CSV export.*
 
 ![InsideLink Global Analytics](docs/screenshots/admin-analytics.png)
 
 ---
 
-### 3. Public Links Directory (`/links`)
-*Curated showcase for portfolio visitors featuring category tabs (Projects, Social, Resources), real-time search, and keyset-based infinite scroll.*
+### 3. Public Links Directory (`/`)
+*Obsidian & Emerald dark-mode showcase for visitors featuring category tabs (Projects, Social, Resources), real-time search, and keyset-based infinite scroll. Legacy `/links` requests permanently redirect (`308`) to `/`.*
 
 ![Public Links Directory](docs/screenshots/public-directory.png)
 
 ---
 
 ### 4. Interactive Micro-Landing (`type = 'HUB'`)
-*Multi-action intermediate showcase for complex projects (`cristianarando.dev/proyecto-guia-turistica`).*
+*Multi-action intermediate showcase for complex projects (`links.cristianarando.dev/proyecto-guia-turistica`) with per-button outbound CTR telemetry.*
 
 ![Project Micro-Landing](docs/screenshots/hub-preview.png)
 
@@ -52,21 +52,26 @@
 
 ## ⚡ Key Architectural Highlights
 
-1. **Seamless Reverse-Proxy Coexistence (`cristianarando.dev`):**
-   Runs independently on Vercel (`inside-link.vercel.app`) while being mapped transparently under `https://www.cristianarando.dev` via Vercel rewrites. Zero downtime, zero collisions with Astro static assets or i18n routing (`/en/`, `/es/`).
-2. **Sub-50ms Redirect Engine (`GET /[slug]`):**
-   Fast-path direct redirects (`HTTP 307/301`) with asynchronous background telemetry execution via Next.js `after()`.
-3. **Compound Keyset Pagination:**
-   Infinite scroll driven by `(is_pinned DESC, id DESC)` over monotonic **ULIDs**, ensuring zero duplicate items and constant-time database queries even at scale.
-4. **Single-Owner GitHub OAuth Lockdown:**
-   Strictly enforced via `databaseHooks.account.create.before` blocking any login attempt whose GitHub numerical account ID does not match `ALLOWED_GITHUB_ID`.
-5. **Polymorphic Link Modes:**
-   - `DIRECT`: High-speed URL redirection.
-   - `HUB`: Self-hosted responsive micro-landing showcasing multiple project repositories, live demos, and documentation links.
-6. **Built-in Security Controls:**
-   - `scrypt` key derivation with cryptographic salt for PIN-protected links (`timingSafeEqual`).
-   - Rate limiting on sensitive endpoints (max 5 failed unlock attempts per 60 seconds).
-   - Dynamic Open Graph meta generation for social preview crawlers (`WhatsApp`, `LinkedInBot`, `Twitterbot`) without consuming click quotas.
+1. **Standalone Subdomain Deployment (`links.cristianarando.dev`):**
+   Runs directly on its own subdomain with `/` as the canonical public directory (`/links` -> `/` permanent `308` redirect in `next.config.ts`). Former portfolio slugs (`/projects`, `/uses`, `/blog`, `/cv`, etc.) are available for shortening without cross-project rewrite rules.
+2. **Next.js `16.4.3` Request Proxy (`src/proxy.ts`):**
+   Replaces legacy `middleware.ts` with `export function proxy(request: NextRequest)` to enforce `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, and automatic `X-Robots-Tag: noindex, nofollow` on `*.vercel.app` preview hosts.
+3. **Obsidian & Emerald Dark UI:**
+   High-contrast dark-only interface (`#09090b` Obsidian base with `#10b981` Emerald accents) across the public directory, HUB landings, PIN interstitials, and `/admin` console.
+4. **Hardened PIN Protection & Atomic Rate Limiting:**
+   - `scrypt` key derivation with cryptographic salt and `timingSafeEqual` verification (`src/server/crypto/pin.ts`).
+   - Stateless HMAC-SHA256 unlock tokens (`il_unlock_<linkId>`, `HttpOnly`, `SameSite=Lax`, 15-minute TTL) issued by `POST /api/v1/slug/[slug]/unlock` and required for PIN-protected `hub-click` events (`src/server/crypto/pin-token.ts`).
+   - Atomic SQLite rate limiting (`src/server/crypto/rate-limit.ts`) using UTC-day salted SHA-256 keys (`pin_attempts`), `ON CONFLICT(key) DO UPDATE` upserts (`5` attempts / `60s`), and stale-row pruning.
+5. **`O(1)` SQLite Analytics Engine & CSV Export (`src/server/services/analytics.service.ts`):**
+   Parallel `db.batch([...])` SQLite `COUNT`, `SUM`, and `GROUP BY` queries compute `totalClicksInRange`, `previousPeriodClicks`, `deltaPercentage`, `hubSubLinkClicks`, `subLinks` (resolved to button labels), `countries`, `devices`, `os`, `browsers`, `referrers`, `queryRefs` (`?ref=`), and `topLinks`—with full UTF-8 CSV export from both global analytics and per-link drawers.
+6. **SSRF-Protected Magic URL Metadata Preview (`src/server/services/metadata.service.ts`):**
+   `POST /api/v1/links/metadata-preview` auto-fills link `title`, `description`, and suggested `icon` from destination URLs while blocking loopback, RFC1918, CGNAT, link-local/cloud metadata (`169.254.169.254`), IPv6 ULA/link-local, non-HTTP schemes, and DNS-rebinded targets across redirects.
+7. **Branded QR Studio with `?ref=` Attribution (`src/lib/qr-generator.ts`):**
+   Generates vector SVG and `1024×1024px` PNG QR codes pointing to canonical `https://links.cristianarando.dev/[slug]` with Level `H` (30%) error correction, optional centered `</> CA` badge, and `?ref=` campaign attribution chips.
+8. **Single-Owner GitHub OAuth Lockdown:**
+   Strictly enforced via Better-Auth `databaseHooks` blocking any account or user whose GitHub ID or email does not match `ALLOWED_GITHUB_ID` / `ALLOWED_GITHUB_EMAIL`.
+9. **Compound Keyset Pagination & Local SQLite Safety:**
+   Infinite scroll driven by `(is_pinned DESC, id DESC)` over monotonic **ULIDs**, local `PRAGMA foreign_keys = ON` enforcement for `file:` databases, and remote Turso protection on `db:seed`.
 
 ---
 
@@ -74,13 +79,13 @@
 
 | Layer | Technology |
 | :--- | :--- |
-| **Runtime & Package Manager** | Node.js `v24.11.1` LTS + `pnpm` |
-| **Full-Stack Framework** | Next.js `16.4.3` (App Router, Turbopack, `after()` API) + React `19.3.0` |
-| **Edge Database** | Turso (`@libsql/client` SQLite/libSQL) + Drizzle ORM |
+| **Runtime & Package Manager** | Node.js `v24.x` LTS + `pnpm` |
+| **Full-Stack Framework** | Next.js `16.4.3` (App Router, `src/proxy.ts`, `after()` API) + React `19.3.0` |
+| **Edge Database** | Turso (`@libsql/client` SQLite/libSQL) + Drizzle ORM `0.45.4` |
 | **Authentication** | Better-Auth (`GitHub OAuth` locked to `ALLOWED_GITHUB_ID`) |
-| **Validation & Cryptography** | Zod + `ulidx` (Monotonic ULIDs) + `node:crypto` (`scrypt` + `timingSafeEqual`) |
+| **Validation & Cryptography** | Zod + `ulidx` (Monotonic ULIDs) + `node:crypto` (`scrypt`, `HMAC-SHA256`, `timingSafeEqual`) |
 | **Styling & Icons** | Tailwind CSS v4 + Lucide React + Custom SVG Brand Icons |
-| **Testing Suite** | Vitest (78 Unit, Integration, and E2E tests) + Playwright |
+| **Testing & Quality Gates** | Vitest (90 Unit, Integration, and E2E tests across 25 suites) + ESLint + Prettier + TypeScript |
 
 ---
 
@@ -103,25 +108,37 @@ Copy the template environment variables:
 cp .env.example .env
 ```
 
-Default local environment values:
+Default `.env.example` variables:
 ```ini
+# Database (Turso / libSQL)
+# Local development default: file:local.db
 TURSO_DATABASE_URL="file:local.db"
 TURSO_AUTH_TOKEN=""
-BETTER_AUTH_SECRET="local-development-secret-key-at-least-32-chars-long"
+
+# Authentication (Better-Auth + GitHub OAuth)
+BETTER_AUTH_SECRET="your_better_auth_secret_minimum_32_characters_long"
 BETTER_AUTH_URL="http://localhost:3000"
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
-NEXT_PUBLIC_CANONICAL_URL="http://localhost:3000"
+GITHUB_CLIENT_ID="your_github_oauth_client_id"
+GITHUB_CLIENT_SECRET="your_github_oauth_client_secret"
+
+# Single-Owner Guard (Required)
 ALLOWED_GITHUB_ID="12345678"
 ALLOWED_GITHUB_EMAIL="owner@example.com"
+
+# Canonical Domain & Portfolio URL
+NEXT_PUBLIC_CANONICAL_URL="https://links.cristianarando.dev"
+NEXT_PUBLIC_PORTFOLIO_URL="https://cristianarando.dev"
+NEXT_PUBLIC_ASSET_PREFIX=""
 ```
 
-### 3. Run SQLite Migrations & Seed Idempotent Data
+### 3. Run SQLite Migrations & Seed Local Data
 ```bash
 # Apply Drizzle migrations to local.db
-pnpm db:migrate
+TURSO_DATABASE_URL="file:local.db" pnpm db:migrate
 
-# Seed with 18 sample links (DIRECT, HUB, PIN, Expired) and 120 analytics click events
-pnpm db:seed
+# Seed local.db with sample links (DIRECT, HUB, PIN, Expired) and click events
+# Note: db:seed refuses to run against remote libsql:// or https:// URLs without --allow-remote-wipe
+TURSO_DATABASE_URL="file:local.db" pnpm db:seed
 ```
 
 ### 4. Start Development Server
@@ -129,23 +146,28 @@ pnpm db:seed
 pnpm dev
 ```
 Open [http://localhost:3000](http://localhost:3000) in your browser:
-- **Local Showcase Index**: [http://localhost:3000](http://localhost:3000)
-- **Admin Dashboard**: [http://localhost:3000/admin](http://localhost:3000/admin) *(Local dev bypass enabled)*
+- **Public Directory**: [http://localhost:3000](http://localhost:3000) (`/links` redirects `308` to `/`)
+- **Admin Dashboard**: [http://localhost:3000/admin](http://localhost:3000/admin)
 - **Global Analytics**: [http://localhost:3000/admin/analytics](http://localhost:3000/admin/analytics)
-- **Public Directory**: [http://localhost:3000/links](http://localhost:3000/links)
 - **HUB Demo**: [http://localhost:3000/proyecto-guia-turistica](http://localhost:3000/proyecto-guia-turistica)
 
 ---
 
 ## 🧪 Testing & Verification
 
-The project includes 78 automated tests covering unit utilities, database invariants, route handlers, and end-to-end user journeys:
+The project includes **90 automated tests across 25 test files** covering unit utilities, SSRF defenses, PIN security hardening, SQLite `GROUP BY` analytics aggregations, database invariants, route handlers, and end-to-end user journeys:
 
 ```bash
+# Run ESLint across src and tests
+pnpm lint
+
+# Check Prettier formatting across src, tests, and eslint.config.mjs
+pnpm format:check
+
 # Run strict TypeScript typechecking
 pnpm typecheck
 
-# Run full Vitest test suite (Unit + Integration + Flow)
+# Run full Vitest test suite (Unit + Integration + E2E)
 pnpm test
 
 # Production build verification
@@ -156,61 +178,34 @@ pnpm build
 
 ## 🌐 Production Deployment Architecture
 
-InsideLink is deployed across two independent Vercel projects working seamlessly together:
+InsideLink is deployed as an independent Next.js `16.4.3` application on Vercel serving `https://links.cristianarando.dev`, backed by Turso Cloud (`libSQL`):
 
 ```mermaid
 flowchart TD
-    User["User Browser"] --> Domain["https://www.cristianarando.dev"]
-    Domain --> Portfolio["Astro Portfolio (Vercel Project 1)"]
-    
-    Portfolio -->|"/en/*, /es/*, /blog/*, static"| AstroStatic["Astro Static Pages"]
-    Portfolio -->|"/admin*, /links*, /api/auth*, /api/v1*, /[slug]"| ReverseProxy["Vercel Rewrites Proxy"]
-    
-    ReverseProxy --> InsideLink["InsideLink (Next.js 16 on Vercel Project 2)"]
-    InsideLink --> TursoDB["Turso Cloud Database (libSQL AWS sa-east-1)"]
+    Visitor["Visitor / Bot"] --> Domain["https://links.cristianarando.dev"]
+    Domain --> Proxy["Next.js 16 Proxy (src/proxy.ts)"]
+    Proxy --> PublicDir["/ (Public Directory) & /links -> / (308)"]
+    Proxy --> Resolver["GET /[slug] (Redirect 307/301, HUB, PIN, Bot OG)"]
+    Proxy --> Admin["/admin & /admin/analytics (Better-Auth GitHub Owner)"]
+    Resolver --> TursoDB["Turso Cloud (libSQL AWS sa-east-1)"]
+    Admin --> TursoDB
 ```
 
-### Required Vercel Environment Variables
-Set these in your `inside-link` project on Vercel:
+### Required Production Environment Variables
 
 | Variable | Description | Example |
 | :--- | :--- | :--- |
-| `TURSO_DATABASE_URL` | Cloud Turso libSQL connection URL | `libsql://your-db-name-org.turso.io` |
-| `TURSO_AUTH_TOKEN` | Read/write Turso database token | `your_turso_auth_token` |
-| `BETTER_AUTH_SECRET` | 32+ character random secret | `openssl rand -base64 32` |
-| `BETTER_AUTH_URL` | Canonical Better-Auth root URL | `https://your-domain.dev` |
+| `TURSO_DATABASE_URL` | Turso libSQL connection URL (`file:local.db` locally) | `libsql://your-db-name-org.turso.io` |
+| `TURSO_AUTH_TOKEN` | Read/write Turso database token (empty locally) | `your_turso_auth_token` |
+| `BETTER_AUTH_SECRET` | 32+ character random secret (also signs PIN unlock cookies) | `openssl rand -base64 32` |
+| `BETTER_AUTH_URL` | Canonical Better-Auth root URL | `https://links.cristianarando.dev` |
 | `GITHUB_CLIENT_ID` | GitHub OAuth App Client ID | `your_github_oauth_client_id` |
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth App Secret | `your_github_oauth_client_secret` |
 | `ALLOWED_GITHUB_ID` | Owner's immutable GitHub user ID | `12345678` |
 | `ALLOWED_GITHUB_EMAIL` | Owner's verified email address | `owner@example.com` |
-| `NEXT_PUBLIC_APP_URL` | Public-facing app URL | `https://www.your-domain.dev` |
-| `NEXT_PUBLIC_CANONICAL_URL` | Canonical domain URL | `https://your-domain.dev` |
-
-### Portfolio Reverse-Proxy Rules (`my-portfolio/vercel.json`)
-The primary portfolio routes InsideLink endpoints cleanly using Vercel rewrites:
-
-```json
-{
-  "rewrites": [
-    { "source": "/_next/:path*", "destination": "https://inside-link.vercel.app/_next/:path*" },
-    { "source": "/_next/:path*/", "destination": "https://inside-link.vercel.app/_next/:path*" },
-    { "source": "/admin", "destination": "https://inside-link.vercel.app/admin" },
-    { "source": "/admin/", "destination": "https://inside-link.vercel.app/admin" },
-    { "source": "/admin/:path*", "destination": "https://inside-link.vercel.app/admin/:path*" },
-    { "source": "/admin/:path*/", "destination": "https://inside-link.vercel.app/admin/:path*" },
-    { "source": "/login", "destination": "https://inside-link.vercel.app/login" },
-    { "source": "/login/", "destination": "https://inside-link.vercel.app/login" },
-    { "source": "/links", "destination": "https://inside-link.vercel.app/links" },
-    { "source": "/links/", "destination": "https://inside-link.vercel.app/links" },
-    { "source": "/api/auth/:path*", "destination": "https://inside-link.vercel.app/api/auth/:path*" },
-    { "source": "/api/auth/:path*/", "destination": "https://inside-link.vercel.app/api/auth/:path*" },
-    { "source": "/api/v1/:path*", "destination": "https://inside-link.vercel.app/api/v1/:path*" },
-    { "source": "/api/v1/:path*/", "destination": "https://inside-link.vercel.app/api/v1/:path*" },
-    { "source": "/:slug((?!es$|en$|de$|ru$|ja$|projects$|uses$|cv$|blog$|bookshelf$|library$|search$|series$|search-index$|news-sitemap$|rss$|about$|contact$|_astro$|_next$|assets$|images$|fonts$|icons$|brand$)[a-z0-9][a-z0-9-_]{2,99})", "destination": "https://inside-link.vercel.app/:slug" },
-    { "source": "/:slug((?!es$|en$|de$|ru$|ja$|projects$|uses$|cv$|blog$|bookshelf$|library$|search$|series$|search-index$|news-sitemap$|rss$|about$|contact$|_astro$|_next$|assets$|images$|fonts$|icons$|brand$)[a-z0-9][a-z0-9-_]{2,99})/", "destination": "https://inside-link.vercel.app/:slug" }
-  ]
-}
-```
+| `NEXT_PUBLIC_CANONICAL_URL` | Canonical shortlink & directory origin | `https://links.cristianarando.dev` |
+| `NEXT_PUBLIC_PORTFOLIO_URL` | Primary portfolio origin linked in headers/footers | `https://cristianarando.dev` |
+| `NEXT_PUBLIC_ASSET_PREFIX` | Optional CDN/asset prefix for Next.js static assets | `""` |
 
 ---
 
