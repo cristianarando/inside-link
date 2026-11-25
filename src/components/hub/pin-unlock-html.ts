@@ -37,7 +37,7 @@ export function renderPinUnlockHtml(input: PinUnlockRenderInput): string {
   <title>${title} (PIN Protected) — ${canonicalHost}</title>
   <style>
     *{box-sizing:border-box}
-    body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at top,rgba(16,185,129,.12) 0%,#09090b 55%);color:#fafafa;font-family:system-ui,-apple-system,sans-serif;padding:16px}
+    body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background-color:#09090b;background-image:radial-gradient(ellipse 80% 45% at 50% -10%,rgba(16,185,129,.14),transparent 70%);color:#fafafa;font-family:system-ui,-apple-system,sans-serif;padding:16px}
     .card{max-width:440px;width:100%;border:1px solid #27272a;background:rgba(24,24,27,.86);backdrop-filter:blur(12px);border-radius:20px;padding:32px;text-align:center;box-shadow:0 24px 48px rgba(0,0,0,.55)}
     .badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;border:1px solid rgba(16,185,129,.35);background:rgba(16,185,129,.1);font-family:ui-monospace,monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#6ee7b7}
     h1{margin:14px 0 8px;font-size:22px;font-weight:600;letter-spacing:-.02em}

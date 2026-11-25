@@ -103,7 +103,7 @@ export function renderHubLandingHtml(link: LinkDTO): string {
   ${renderOgMetaTags(link)}
   <style>
     *{box-sizing:border-box}
-    body{margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(circle at top,rgba(16,185,129,.12) 0%,#09090b 60%);color:#fafafa;font-family:system-ui,-apple-system,sans-serif;padding:24px 16px}
+    body{margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background-color:#09090b;background-image:radial-gradient(ellipse 80% 45% at 50% -10%,rgba(16,185,129,.14),transparent 70%);color:#fafafa;font-family:system-ui,-apple-system,sans-serif;padding:24px 16px}
     .card{max-width:480px;width:100%;border:1px solid #27272a;background:rgba(24,24,27,.84);backdrop-filter:blur(12px);border-radius:20px;padding:32px;box-shadow:0 24px 48px rgba(0,0,0,.55)}
     .header-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
     .eyebrow{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;border:1px solid rgba(16,185,129,.32);background:rgba(16,185,129,.1);color:#6ee7b7;font-family:ui-monospace,monospace;font-size:11px;text-transform:uppercase;letter-spacing:.08em}
