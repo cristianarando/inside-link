@@ -1,9 +1,21 @@
 import type { Metadata } from "next";
-import { getCanonicalBaseUrl, getPortfolioBaseUrl } from "@/server/og/presentation";
+import { Geist, JetBrains_Mono } from "next/font/google";
+import { env, getCanonicalHost, getCanonicalUrl } from "@/lib/env";
 import "./globals.css";
 
-const canonicalUrl = getCanonicalBaseUrl();
-const portfolioUrl = getPortfolioBaseUrl();
+const geistSans = Geist({
+  subsets: ["latin"],
+  variable: "--font-sans",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+});
+
+const canonicalUrl = getCanonicalUrl();
+const canonicalHost = getCanonicalHost();
+const portfolioUrl = env.NEXT_PUBLIC_PORTFOLIO_URL.replace(/\/+$/, "");
 
 const SITE_TITLE = "Cristian Arando — Links & Projects";
 const SITE_DESCRIPTION =
@@ -32,7 +44,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     url: "/",
-    siteName: "links.cristianarando.dev",
+    siteName: canonicalHost,
     title: SITE_TITLE,
     description: SITE_DESCRIPTION,
     images: [
@@ -62,8 +74,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
-      <body className="antialiased">{children}</body>
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${jetbrainsMono.variable} dark`}
+    >
+      <body className="min-h-screen bg-[#09090b] font-sans text-zinc-50 antialiased selection:bg-emerald-500/25 selection:text-emerald-200">
+        {children}
+      </body>
     </html>
   );
 }

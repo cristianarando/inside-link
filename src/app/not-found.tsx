@@ -1,12 +1,15 @@
+import Link from "next/link";
 import { ArrowLeft, Compass, Link2Off } from "lucide-react";
+import { env, getCanonicalHost } from "@/lib/env";
 
 export default function NotFoundPage() {
-  const portfolioUrl = process.env.NEXT_PUBLIC_PORTFOLIO_URL || "https://cristianarando.dev";
+  const portfolioUrl = env.NEXT_PUBLIC_PORTFOLIO_URL.replace(/\/+$/, "");
+  const canonicalHost = getCanonicalHost();
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-zinc-950 px-4 text-center text-zinc-100">
-      <div className="w-full max-w-md rounded-2xl border border-zinc-800/80 bg-zinc-900/60 p-8 shadow-2xl backdrop-blur-xl">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-zinc-700/60 bg-zinc-800/80 text-zinc-300">
+    <main className="bg-obsidian-glow flex min-h-screen flex-col items-center justify-center px-4 text-center text-zinc-100">
+      <div className="obsidian-surface-elevated w-full max-w-md rounded-2xl border border-zinc-800/90 p-8 backdrop-blur-xl">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-emerald-500/25 bg-emerald-500/10 text-emerald-300">
           <Link2Off className="h-6 w-6" />
         </div>
 
@@ -18,23 +21,24 @@ export default function NotFoundPage() {
         </h1>
         <p className="mt-3 text-sm leading-relaxed text-zinc-400">
           The route you tried to open is not registered on{" "}
-          <span className="font-medium text-zinc-200">links.cristianarando.dev</span> or has been removed.
+          <span className="font-mono font-medium text-zinc-200">{canonicalHost}</span>{" "}
+          or has been removed.
         </p>
 
         <div className="mt-7 flex flex-col gap-2.5 sm:flex-row sm:justify-center">
-          <a
-            href={portfolioUrl}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-medium text-zinc-950 transition hover:bg-zinc-200"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Go to portfolio
-          </a>
-          <a
+          <Link
             href="/"
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700/80 bg-zinc-800/60 px-4 py-2.5 text-sm font-medium text-zinc-200 transition hover:bg-zinc-800"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-zinc-950 transition hover:bg-emerald-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
           >
             <Compass className="h-4 w-4" />
             Browse public links
+          </Link>
+          <a
+            href={portfolioUrl}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-800 bg-[#16161b] px-4 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-zinc-700 hover:bg-zinc-800 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Go to portfolio
           </a>
         </div>
       </div>
