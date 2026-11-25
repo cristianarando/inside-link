@@ -1,7 +1,7 @@
 import { after, type NextRequest } from "next/server";
 import { renderExpiredLinkHtml } from "@/components/hub/expired-link-view";
-import { renderHubLandingHtml } from "@/components/hub/hub-landing-view";
-import { renderPinUnlockHtml } from "@/components/hub/pin-unlock-form";
+import { renderHubLandingHtml } from "@/components/hub/hub-landing-html";
+import { renderPinUnlockHtml } from "@/components/hub/pin-unlock-html";
 import { getCanonicalBaseUrl } from "@/server/og/presentation";
 import { resolutionService } from "@/server/services";
 import {

@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { handleSlugGet } from "@/app/(public)/[slug]/route";
 import { handleHubSubLinkClickPost } from "@/app/api/v1/slug/[slug]/hub-click/route";
 import { handlePinUnlockPost } from "@/app/api/v1/slug/[slug]/unlock/route";
-import { renderPinUnlockHtml } from "@/components/hub/pin-unlock-form";
+import { renderPinUnlockHtml } from "@/components/hub/pin-unlock-html";
 import {
   checkPinRateLimit,
   computePinAttemptKey,
