@@ -39,7 +39,7 @@ export function AnalyticsDrawer({ open, link, onClose }: AnalyticsDrawerProps) {
       `/api/v1/links/${encodeURIComponent(link.id)}/analytics?range=${range}`,
       {
         signal: controller.signal,
-      }
+      },
     )
       .then(async (res) => {
         if (!res.ok) return;

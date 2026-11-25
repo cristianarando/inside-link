@@ -18,7 +18,7 @@ export interface MetadataPreviewRouteDeps extends PreviewMetadataDeps {
 
 export async function handleMetadataPreviewPost(
   request: NextRequest | Request,
-  deps: MetadataPreviewRouteDeps = {}
+  deps: MetadataPreviewRouteDeps = {},
 ): Promise<Response> {
   const checkAuth = deps.checkAuth ?? assertAdminApiSession;
   const authResult = await checkAuth(request.headers);
@@ -37,7 +37,7 @@ export async function handleMetadataPreviewPost(
           message: "Request body is not valid JSON.",
         },
       },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -47,10 +47,11 @@ export async function handleMetadataPreviewPost(
       {
         error: {
           code: "VALIDATION_ERROR",
-          message: parsed.error.issues[0]?.message || "Invalid request payload.",
+          message:
+            parsed.error.issues[0]?.message || "Invalid request payload.",
         },
       },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -66,7 +67,7 @@ export async function handleMetadataPreviewPost(
             message: err.message,
           },
         },
-        { status: err.status }
+        { status: err.status },
       );
     }
 
@@ -77,7 +78,7 @@ export async function handleMetadataPreviewPost(
           message: "Internal server error while previewing metadata.",
         },
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

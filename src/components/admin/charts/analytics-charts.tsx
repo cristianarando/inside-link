@@ -33,7 +33,7 @@ export function formatRegionFlag(code: string): string {
   }
   return String.fromCodePoint(
     127397 + upper.charCodeAt(0),
-    127397 + upper.charCodeAt(1)
+    127397 + upper.charCodeAt(1),
   );
 }
 
@@ -94,7 +94,7 @@ function csvRow(cells: Array<string | number | null | undefined>): string {
  */
 export function exportAnalyticsSummaryCsv(
   summary: AnalyticsSummaryDTO,
-  filenamePrefix?: string
+  filenamePrefix?: string,
 ): void {
   const lines: string[] = [];
 
@@ -103,20 +103,20 @@ export function exportAnalyticsSummaryCsv(
   lines.push(csvRow(["Summary", "Link ID", summary.linkId]));
   lines.push(csvRow(["Summary", "Range", summary.range]));
   lines.push(
-    csvRow(["Summary", "Total Clicks in Range", summary.totalClicksInRange])
+    csvRow(["Summary", "Total Clicks in Range", summary.totalClicksInRange]),
   );
   lines.push(
-    csvRow(["Summary", "Previous Period Clicks", summary.previousPeriodClicks])
+    csvRow(["Summary", "Previous Period Clicks", summary.previousPeriodClicks]),
   );
   lines.push(
     csvRow([
       "Summary",
       "Delta Percentage (%)",
       summary.deltaPercentage !== null ? summary.deltaPercentage : "N/A",
-    ])
+    ]),
   );
   lines.push(
-    csvRow(["Summary", "HUB Button Clicks", summary.hubSubLinkClicks])
+    csvRow(["Summary", "HUB Button Clicks", summary.hubSubLinkClicks]),
   );
   lines.push(csvRow(["Summary", "All-Time Clicks", summary.allTimeClicks]));
   lines.push("");
@@ -140,7 +140,7 @@ export function exportAnalyticsSummaryCsv(
   for (const section of breakdownSections) {
     for (const item of section.items) {
       lines.push(
-        csvRow([section.name, item.key, item.count, `${item.percentage}%`])
+        csvRow([section.name, item.key, item.count, `${item.percentage}%`]),
       );
     }
   }
@@ -154,7 +154,7 @@ export function exportAnalyticsSummaryCsv(
         "Label",
         "Clicks",
         "Share (%)",
-      ])
+      ]),
     );
     for (const sub of summary.subLinks) {
       lines.push(
@@ -164,7 +164,7 @@ export function exportAnalyticsSummaryCsv(
           sub.label,
           sub.count,
           `${sub.percentage}%`,
-        ])
+        ]),
       );
     }
   }
@@ -178,7 +178,7 @@ export function exportAnalyticsSummaryCsv(
         "Title",
         "Clicks in Range",
         "All-Time Clicks",
-      ])
+      ]),
     );
     for (const top of summary.topLinks) {
       lines.push(
@@ -188,7 +188,7 @@ export function exportAnalyticsSummaryCsv(
           top.title,
           top.clicksInRange,
           top.allTimeClicks,
-        ])
+        ]),
       );
     }
   }
@@ -219,11 +219,7 @@ export function DailyClicksBarChart({
     totalClicksInRange ?? series.reduce((acc, point) => acc + point.clicks, 0);
 
   const gapClass =
-    series.length <= 7
-      ? "gap-2"
-      : series.length <= 31
-        ? "gap-1"
-        : "gap-[2px]";
+    series.length <= 7 ? "gap-2" : series.length <= 31 ? "gap-1" : "gap-[2px]";
 
   const milestoneLabels = useMemo(() => {
     if (series.length === 0) return [];
@@ -247,7 +243,7 @@ export function DailyClicksBarChart({
   }, [series]);
 
   const activePoint =
-    hoveredIndex !== null ? series[hoveredIndex] ?? null : null;
+    hoveredIndex !== null ? (series[hoveredIndex] ?? null) : null;
 
   return (
     <div className="obsidian-surface rounded-2xl border border-zinc-800/80 p-4">
@@ -295,7 +291,7 @@ export function DailyClicksBarChart({
                   role="tooltip"
                   className={cn(
                     "pointer-events-none absolute -top-1 z-20 whitespace-nowrap rounded-lg border border-emerald-500/35 bg-[#09090b]/95 px-2.5 py-1.5 text-[11px] shadow-xl backdrop-blur-md",
-                    tooltipAlignClass
+                    tooltipAlignClass,
                   )}
                 >
                   <div className="font-mono font-medium text-zinc-200">
@@ -332,7 +328,7 @@ export function DailyClicksBarChart({
                       : "bg-emerald-500/75 hover:bg-emerald-400"
                     : isActive
                       ? "bg-zinc-700"
-                      : "bg-zinc-800/60"
+                      : "bg-zinc-800/60",
                 )}
               />
             </div>
@@ -468,7 +464,7 @@ function HubSubLinksCard({
 function TopLinksCard({ topLinks }: { topLinks: TopLinkItem[] }) {
   const maxRangeClicks = Math.max(
     1,
-    ...topLinks.map((item) => item.clicksInRange)
+    ...topLinks.map((item) => item.clicksInRange),
   );
 
   return (
@@ -492,7 +488,7 @@ function TopLinksCard({ topLinks }: { topLinks: TopLinkItem[] }) {
               ? 2
               : Math.max(
                   6,
-                  Math.round((link.clicksInRange / maxRangeClicks) * 100)
+                  Math.round((link.clicksInRange / maxRangeClicks) * 100),
                 );
 
           return (
@@ -541,7 +537,7 @@ export function AnalyticsOverviewGrid({
       <div
         className={cn(
           "grid grid-cols-1 gap-3 sm:grid-cols-3",
-          hasHubClicks && "lg:grid-cols-4"
+          hasHubClicks && "lg:grid-cols-4",
         )}
       >
         <div className="obsidian-surface rounded-xl border border-zinc-800/90 p-3.5">
@@ -568,7 +564,8 @@ export function AnalyticsOverviewGrid({
             {summary.totalClicksInRange.toLocaleString("en-US")}
           </p>
           <p className="mt-0.5 font-mono text-[11px] text-zinc-500">
-            vs {summary.previousPeriodClicks.toLocaleString("en-US")} prev period
+            vs {summary.previousPeriodClicks.toLocaleString("en-US")} prev
+            period
           </p>
         </div>
 

@@ -41,7 +41,7 @@ describe("T-017: Controles de Caducidad Automática (expires_at y max_clicks)", 
             headers: { "user-agent": "Mozilla/5.0 Chrome/135.0" },
           }),
           "pase-vip-2",
-          resolutionService
+          resolutionService,
         );
 
       const first = await makeHumanRequest();
@@ -79,7 +79,7 @@ describe("T-017: Controles de Caducidad Automática (expires_at y max_clicks)", 
           headers: { "user-agent": "Mozilla/5.0 Chrome/135.0" },
         }),
         "promo-vencida",
-        resolutionService
+        resolutionService,
       );
       expect(res.status).toBe(410);
       const html = await res.text();

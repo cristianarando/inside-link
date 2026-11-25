@@ -27,9 +27,10 @@ export function extractClientIdentifier(headers: Headers): string {
 export function computePinAttemptKey(
   linkId: string,
   clientIp: string,
-  now: Date = new Date()
+  now: Date = new Date(),
 ): string {
-  const salt = process.env.BETTER_AUTH_SECRET || "insidelink-pin-rate-limit-salt";
+  const salt =
+    process.env.BETTER_AUTH_SECRET || "insidelink-pin-rate-limit-salt";
   const utcDay = now.toISOString().slice(0, 10);
   return createHash("sha256")
     .update(`${salt}:${utcDay}:${linkId}:${clientIp}`)
@@ -47,7 +48,7 @@ export async function checkPinRateLimit(
   db: AppDatabase,
   linkId: string,
   clientIp: string,
-  now: Date = new Date()
+  now: Date = new Date(),
 ): Promise<PinRateLimitStatus> {
   const key = computePinAttemptKey(linkId, clientIp, now);
   const rows = await db
@@ -69,7 +70,7 @@ export async function checkPinRateLimit(
   if (existing.attemptsCount >= PIN_MAX_ATTEMPTS) {
     const retryAfterSeconds = Math.max(
       1,
-      Math.ceil((existing.windowExpiresAt.getTime() - now.getTime()) / 1000)
+      Math.ceil((existing.windowExpiresAt.getTime() - now.getTime()) / 1000),
     );
     return {
       allowed: false,
@@ -91,7 +92,7 @@ export async function recordFailedPinAttempt(
   db: AppDatabase,
   linkId: string,
   clientIp: string,
-  now: Date = new Date()
+  now: Date = new Date(),
 ): Promise<{ attemptsCount: number; remainingAttempts: number }> {
   const key = computePinAttemptKey(linkId, clientIp, now);
   const windowExpiresAt = new Date(now.getTime() + PIN_WINDOW_MS);
@@ -118,7 +119,9 @@ export async function recordFailedPinAttempt(
   // Opportunistically purge stale attempt rows older than 24 hours.
   const purgeThreshold = new Date(now.getTime() - PIN_PURGE_AGE_MS);
   try {
-    await db.delete(pinAttempts).where(lte(pinAttempts.windowExpiresAt, purgeThreshold));
+    await db
+      .delete(pinAttempts)
+      .where(lte(pinAttempts.windowExpiresAt, purgeThreshold));
   } catch {
     // Best-effort cleanup; ignore non-critical purge failures.
   }
@@ -133,7 +136,7 @@ export async function resetPinAttempts(
   db: AppDatabase,
   linkId: string,
   clientIp: string,
-  now: Date = new Date()
+  now: Date = new Date(),
 ): Promise<void> {
   const key = computePinAttemptKey(linkId, clientIp, now);
   await db.delete(pinAttempts).where(eq(pinAttempts.key, key));

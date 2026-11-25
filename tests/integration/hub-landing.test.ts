@@ -59,7 +59,7 @@ describe("T-015: Modo Micro-Landing de Proyecto (type = 'HUB')", () => {
           headers: { "user-agent": "Mozilla/5.0 Chrome/135.0" },
         }),
         "proyecto-guia-turistica",
-        resolutionService
+        resolutionService,
       );
 
       expect(pageRes.status).toBe(200);
@@ -72,16 +72,19 @@ describe("T-015: Modo Micro-Landing de Proyecto (type = 'HUB')", () => {
 
       // Simular clic en el botón "btn-demo"
       const clickRes = await handleHubSubLinkClickPost(
-        new Request("https://cristianarando.dev/api/v1/slug/proyecto-guia-turistica/hub-click", {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            "user-agent": "Mozilla/5.0 Chrome/135.0",
+        new Request(
+          "https://cristianarando.dev/api/v1/slug/proyecto-guia-turistica/hub-click",
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "user-agent": "Mozilla/5.0 Chrome/135.0",
+            },
+            body: JSON.stringify({ subLinkId: "btn-demo" }),
           },
-          body: JSON.stringify({ subLinkId: "btn-demo" }),
-        }),
+        ),
         "proyecto-guia-turistica",
-        { db, resolution: resolutionService }
+        { db, resolution: resolutionService },
       );
 
       expect(clickRes.status).toBe(200);

@@ -14,7 +14,7 @@ export interface DebounceController<T> {
 export function createDebounceController<T>(
   initialValue: T,
   delayMs: number,
-  onEmit: (value: T) => void
+  onEmit: (value: T) => void,
 ): DebounceController<T> {
   let timer: ReturnType<typeof setTimeout> | null = null;
   let pending: T = initialValue;
@@ -34,11 +34,14 @@ export function createDebounceController<T>(
     if (timer !== null) {
       clearTimeout(timer);
     }
-    timer = setTimeout(() => {
-      timer = null;
-      hasPending = false;
-      onEmit(pending);
-    }, Math.max(0, delayMs));
+    timer = setTimeout(
+      () => {
+        timer = null;
+        hasPending = false;
+        onEmit(pending);
+      },
+      Math.max(0, delayMs),
+    );
   };
 
   const flush = () => {
@@ -62,9 +65,12 @@ export function useDebouncedValue<T>(value: T, delay = 300): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedValue(value);
-    }, Math.max(0, delay));
+    const timer = setTimeout(
+      () => {
+        setDebouncedValue(value);
+      },
+      Math.max(0, delay),
+    );
 
     return () => {
       clearTimeout(timer);

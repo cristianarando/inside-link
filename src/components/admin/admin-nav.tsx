@@ -56,14 +56,17 @@ export function AdminNav({ userEmail }: AdminNavProps) {
             </span>
           </Link>
 
-          <nav className="hidden items-center gap-1 sm:flex" aria-label="Admin navigation">
+          <nav
+            className="hidden items-center gap-1 sm:flex"
+            aria-label="Admin navigation"
+          >
             <Link
               href="/admin"
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50",
                 isLinksActive
                   ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-                  : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
+                  : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100",
               )}
             >
               <Link2 className="h-3.5 w-3.5" />
@@ -75,7 +78,7 @@ export function AdminNav({ userEmail }: AdminNavProps) {
                 "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50",
                 isAnalyticsActive
                   ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-                  : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
+                  : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100",
               )}
             >
               <BarChart3 className="h-3.5 w-3.5" />
@@ -127,7 +130,7 @@ export function AdminNav({ userEmail }: AdminNavProps) {
             "inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition",
             isLinksActive
               ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-              : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
+              : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100",
           )}
         >
           <Link2 className="h-3.5 w-3.5" />
@@ -139,7 +142,7 @@ export function AdminNav({ userEmail }: AdminNavProps) {
             "inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition",
             isAnalyticsActive
               ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-              : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
+              : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100",
           )}
         >
           <BarChart3 className="h-3.5 w-3.5" />

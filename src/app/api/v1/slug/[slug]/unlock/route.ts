@@ -13,7 +13,11 @@ import {
 } from "@/server/crypto/rate-limit";
 import { db } from "@/server/db";
 import { links } from "@/server/db/schema";
-import { resolutionService, toLinkDTO, type AppDatabase } from "@/server/services";
+import {
+  resolutionService,
+  toLinkDTO,
+  type AppDatabase,
+} from "@/server/services";
 import {
   buildDestinationUrl,
   type ResolutionService,
@@ -34,7 +38,7 @@ export async function handlePinUnlockPost(
   } = {
     db,
     resolution: resolutionService,
-  }
+  },
 ): Promise<NextResponse> {
   let rawBody: unknown;
   try {
@@ -42,7 +46,7 @@ export async function handlePinUnlockPost(
   } catch {
     return NextResponse.json(
       { error: { code: "INVALID_JSON", message: "Invalid JSON body" } },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -50,7 +54,7 @@ export async function handlePinUnlockPost(
   if (!parsed.success) {
     return NextResponse.json(
       { error: { code: "VALIDATION_ERROR", message: "PIN is required" } },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -65,7 +69,7 @@ export async function handlePinUnlockPost(
   if (!row) {
     return NextResponse.json(
       { error: { code: "NOT_FOUND", message: "Short link not found" } },
-      { status: 404 }
+      { status: 404 },
     );
   }
 
@@ -76,15 +80,25 @@ export async function handlePinUnlockPost(
     (row.maxClicks !== null && row.clicksCount >= row.maxClicks)
   ) {
     return NextResponse.json(
-      { error: { code: "LINK_INACTIVE_OR_EXPIRED", message: "This link is no longer active" } },
-      { status: 410 }
+      {
+        error: {
+          code: "LINK_INACTIVE_OR_EXPIRED",
+          message: "This link is no longer active",
+        },
+      },
+      { status: 410 },
     );
   }
 
   if (!row.passwordHash) {
     return NextResponse.json(
-      { error: { code: "PIN_NOT_CONFIGURED", message: "This link does not require a PIN" } },
-      { status: 400 }
+      {
+        error: {
+          code: "PIN_NOT_CONFIGURED",
+          message: "This link does not require a PIN",
+        },
+      },
+      { status: 400 },
     );
   }
 
@@ -105,7 +119,7 @@ export async function handlePinUnlockPost(
           "Retry-After": String(rateLimit.retryAfterSeconds),
           "Cache-Control": "private, no-store",
         },
-      }
+      },
     );
   }
 
@@ -123,7 +137,7 @@ export async function handlePinUnlockPost(
       {
         status: 401,
         headers: { "Cache-Control": "private, no-store" },
-      }
+      },
     );
   }
 
@@ -137,19 +151,24 @@ export async function handlePinUnlockPost(
     if (!row.destinationUrl) {
       return NextResponse.json(
         { error: { code: "NOT_FOUND", message: "Short link not found" } },
-        { status: 404 }
+        { status: 404 },
       );
     }
     try {
       finalDestination = buildDestinationUrl(
         row.destinationUrl,
         incomingParams,
-        row.forwardQueryParams
+        row.forwardQueryParams,
       );
     } catch {
       return NextResponse.json(
-        { error: { code: "INVALID_DESTINATION", message: "Invalid destination URL" } },
-        { status: 400 }
+        {
+          error: {
+            code: "INVALID_DESTINATION",
+            message: "Invalid destination URL",
+          },
+        },
+        { status: 400 },
       );
     }
   }
@@ -164,10 +183,19 @@ export async function handlePinUnlockPost(
   });
 
   const ua = request.headers.get("user-agent");
-  if (!isSocialPreviewBot(ua) && !isPrefetchRequest(request.headers) && !recorded) {
+  if (
+    !isSocialPreviewBot(ua) &&
+    !isPrefetchRequest(request.headers) &&
+    !recorded
+  ) {
     return NextResponse.json(
-      { error: { code: "LINK_INACTIVE_OR_EXPIRED", message: "This link is no longer active" } },
-      { status: 410, headers: { "Cache-Control": "private, no-store" } }
+      {
+        error: {
+          code: "LINK_INACTIVE_OR_EXPIRED",
+          message: "This link is no longer active",
+        },
+      },
+      { status: 410, headers: { "Cache-Control": "private, no-store" } },
     );
   }
 
@@ -185,15 +213,19 @@ export async function handlePinUnlockPost(
       status: 200,
       headers: {
         "Cache-Control": "private, no-store",
-        "Set-Cookie": createPinUnlockCookieHeader(row.id, row.passwordHash, now),
+        "Set-Cookie": createPinUnlockCookieHeader(
+          row.id,
+          row.passwordHash,
+          now,
+        ),
       },
-    }
+    },
   );
 }
 
 export async function POST(
   request: Request,
-  context: { params: Promise<{ slug: string }> }
+  context: { params: Promise<{ slug: string }> },
 ): Promise<NextResponse> {
   const { slug } = await context.params;
   return handlePinUnlockPost(request, slug);

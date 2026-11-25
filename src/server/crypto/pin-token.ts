@@ -11,11 +11,13 @@ export function getPinUnlockCookieName(linkId: string): string {
 }
 
 function signPayload(payload: string): string {
-  return createHmac("sha256", getPinTokenSecret()).update(payload).digest("hex");
+  return createHmac("sha256", getPinTokenSecret())
+    .update(payload)
+    .digest("hex");
 }
 
 function readCookieHeader(
-  headers: Headers | Record<string, string | string[] | undefined> | undefined
+  headers: Headers | Record<string, string | string[] | undefined> | undefined,
 ): string | null {
   if (!headers) return null;
   if (typeof (headers as Headers).get === "function") {
@@ -31,7 +33,10 @@ function readCookieHeader(
   return null;
 }
 
-function extractCookieValue(cookieHeader: string | null, name: string): string | null {
+function extractCookieValue(
+  cookieHeader: string | null,
+  name: string,
+): string | null {
   if (!cookieHeader) return null;
   const segments = cookieHeader.split(";");
   for (const segment of segments) {
@@ -57,7 +62,7 @@ function extractCookieValue(cookieHeader: string | null, name: string): string |
 export function createPinUnlockCookieHeader(
   linkId: string,
   passwordHash: string,
-  now: Date = new Date()
+  now: Date = new Date(),
 ): string {
   const expUnixSec = Math.floor(now.getTime() / 1000) + PIN_UNLOCK_TTL_SECONDS;
   const passwordHashPrefix8 = passwordHash.slice(0, 8);
@@ -88,11 +93,14 @@ export function hasValidPinUnlockCookie(
   headers: Headers | Record<string, string | string[] | undefined> | undefined,
   linkId: string,
   passwordHash: string,
-  now: Date = new Date()
+  now: Date = new Date(),
 ): boolean {
   try {
     const cookieHeader = readCookieHeader(headers);
-    const token = extractCookieValue(cookieHeader, getPinUnlockCookieName(linkId));
+    const token = extractCookieValue(
+      cookieHeader,
+      getPinUnlockCookieName(linkId),
+    );
     if (!token) return false;
 
     const parts = token.split(".");

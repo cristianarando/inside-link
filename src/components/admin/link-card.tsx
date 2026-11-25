@@ -29,7 +29,7 @@ export interface LinkCardProps {
   onDelete: (link: LinkDTO) => void;
   onToggleFlags: (
     link: LinkDTO,
-    patch: { isActive?: boolean; isPinned?: boolean }
+    patch: { isActive?: boolean; isPinned?: boolean },
   ) => void;
   onOpenQr?: (link: LinkDTO) => void;
   onOpenAnalytics?: (link: LinkDTO) => void;
@@ -67,7 +67,10 @@ export function LinkCard({
 
   const maxClicksPct =
     link.maxClicks !== null
-      ? Math.min(100, Math.round((link.clicksCount / Math.max(1, link.maxClicks)) * 100))
+      ? Math.min(
+          100,
+          Math.round((link.clicksCount / Math.max(1, link.maxClicks)) * 100),
+        )
       : null;
 
   return (
@@ -77,7 +80,7 @@ export function LinkCard({
         link.isPinned
           ? "border-amber-500/35 bg-[#141418] shadow-lg"
           : "border-zinc-800/80 hover:border-zinc-700/90 hover:bg-[#16161b]",
-        (!link.isActive || link.isExpired) && "opacity-75"
+        (!link.isActive || link.isExpired) && "opacity-75",
       )}
     >
       <div className="min-w-0">
@@ -199,7 +202,10 @@ export function LinkCard({
 
       <div className="mt-4 space-y-2 border-t border-zinc-800/70 pt-3">
         {maxClicksPct !== null && (
-          <div className="space-y-1" title={`${link.clicksCount} of ${link.maxClicks} max clicks`}>
+          <div
+            className="space-y-1"
+            title={`${link.clicksCount} of ${link.maxClicks} max clicks`}
+          >
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-800/90">
               <div
                 style={{ width: `${maxClicksPct}%` }}
@@ -209,7 +215,7 @@ export function LinkCard({
                     ? "bg-red-500"
                     : maxClicksPct >= 85
                       ? "bg-amber-400"
-                      : "bg-emerald-500"
+                      : "bg-emerald-500",
                 )}
               />
             </div>
@@ -226,7 +232,10 @@ export function LinkCard({
             <BarChart3 className="h-3.5 w-3.5 text-emerald-400" />
             <span>
               {link.clicksCount.toLocaleString("en-US")}
-              {link.maxClicks !== null ? ` / ${link.maxClicks.toLocaleString("en-US")}` : ""} clicks
+              {link.maxClicks !== null
+                ? ` / ${link.maxClicks.toLocaleString("en-US")}`
+                : ""}{" "}
+              clicks
             </span>
           </button>
 
@@ -240,7 +249,7 @@ export function LinkCard({
                 "cursor-pointer rounded-lg p-1.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50",
                 link.isPinned
                   ? "bg-amber-500/15 text-amber-300"
-                  : "text-zinc-400 hover:bg-zinc-800 hover:text-white"
+                  : "text-zinc-400 hover:bg-zinc-800 hover:text-white",
               )}
             >
               <Pin className="h-3.5 w-3.5" />

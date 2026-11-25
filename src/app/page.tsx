@@ -87,8 +87,9 @@ export default async function PublicLinksPage() {
                 Cristian Arando — Links &amp; Projects
               </h1>
               <p className="max-w-xl text-sm leading-relaxed text-zinc-400">
-                Curated directory of full-stack projects, interactive micro-landings,
-                open-source repositories, and verified social profiles.
+                Curated directory of full-stack projects, interactive
+                micro-landings, open-source repositories, and verified social
+                profiles.
               </p>
             </div>
           </div>

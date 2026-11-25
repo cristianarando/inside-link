@@ -5,17 +5,14 @@ export const SafeUrlSchema = z
   .string()
   .trim()
   .url("Must be a valid URL")
-  .refine(
-    (url) => {
-      try {
-        const parsed = new URL(url);
-        return parsed.protocol === "http:" || parsed.protocol === "https:";
-      } catch {
-        return false;
-      }
-    },
-    "Only http:// or https:// URLs are allowed"
-  );
+  .refine((url) => {
+    try {
+      const parsed = new URL(url);
+      return parsed.protocol === "http:" || parsed.protocol === "https:";
+    } catch {
+      return false;
+    }
+  }, "Only http:// or https:// URLs are allowed");
 
 export const HubLinkItemSchema = z.object({
   id: z.string().min(1).max(32),
@@ -39,12 +36,9 @@ export const BaseLinkSchema = z.object({
   slug: z.string().optional(),
   type: z.enum(["DIRECT", "HUB"]).default("DIRECT"),
   destinationUrl: SafeUrlSchema.optional().nullable(),
-  redirectStatus: z.union([
-    z.literal(301),
-    z.literal(302),
-    z.literal(307),
-    z.literal(308),
-  ]).default(307),
+  redirectStatus: z
+    .union([z.literal(301), z.literal(302), z.literal(307), z.literal(308)])
+    .default(307),
   forwardQueryParams: z.boolean().default(true),
   hubLinks: z.array(HubLinkItemSchema).max(12).optional().nullable(),
   title: z.string().min(1, "Title is required").max(150),
@@ -58,7 +52,7 @@ export const BaseLinkSchema = z.object({
         .string()
         .min(1)
         .max(30)
-        .transform((t) => t.trim().toLowerCase())
+        .transform((t) => t.trim().toLowerCase()),
     )
     .max(10)
     .default([]),
@@ -78,7 +72,7 @@ export const BaseLinkSchema = z.object({
 
 function validateLinkInvariants(
   data: Partial<z.infer<typeof BaseLinkSchema>>,
-  ctx: z.RefinementCtx
+  ctx: z.RefinementCtx,
 ) {
   if (data.slug && data.slug.trim().length > 0) {
     const parsed = SlugSchema.safeParse(data.slug);
@@ -112,7 +106,9 @@ function validateLinkInvariants(
   }
 }
 
-export const CreateLinkSchema = BaseLinkSchema.superRefine(validateLinkInvariants);
+export const CreateLinkSchema = BaseLinkSchema.superRefine(
+  validateLinkInvariants,
+);
 
 export const UpdateLinkSchema = BaseLinkSchema.partial()
   .extend({

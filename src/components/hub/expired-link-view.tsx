@@ -1,7 +1,10 @@
 import React from "react";
 import type { InactiveReason } from "@/server/services/resolution.service";
 import { getCanonicalBaseUrl } from "@/server/og/presentation";
-import { escapeHtml, getPortfolioBaseUrl } from "@/server/services/og-render.service";
+import {
+  escapeHtml,
+  getPortfolioBaseUrl,
+} from "@/server/services/og-render.service";
 
 function getCanonicalHostLabel(): string {
   try {
@@ -23,13 +26,15 @@ export function getExpiredLinkCopy(reason: InactiveReason): ExpiredLinkCopy {
       return {
         badge: "HTTP 410 · Link Expired",
         heading: "This link has expired",
-        message: "The validity period configured for this short link has ended.",
+        message:
+          "The validity period configured for this short link has ended.",
       };
     case "MAX_CLICKS_REACHED":
       return {
         badge: "HTTP 410 · Limit Reached",
         heading: "Maximum click limit reached",
-        message: "This temporary link has reached the maximum number of allowed clicks.",
+        message:
+          "This temporary link has reached the maximum number of allowed clicks.",
       };
     case "INACTIVE":
     default:
@@ -102,9 +107,13 @@ export function ExpiredLinkView({
         <span className="inline-block rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 font-mono text-xs uppercase tracking-wider text-amber-300">
           {copy.badge}
         </span>
-        <h1 className="mt-4 text-2xl font-semibold tracking-tight">{copy.heading}</h1>
+        <h1 className="mt-4 text-2xl font-semibold tracking-tight">
+          {copy.heading}
+        </h1>
         <p className="mt-1 font-mono text-xs text-zinc-500">/{slug}</p>
-        <p className="mt-3 text-sm leading-relaxed text-zinc-400">{copy.message}</p>
+        <p className="mt-3 text-sm leading-relaxed text-zinc-400">
+          {copy.message}
+        </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <a
             href={baseUrl}

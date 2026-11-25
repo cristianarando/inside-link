@@ -5,7 +5,7 @@ import { handleLinkError, type AdminApiDeps } from "../route";
 
 export async function handleCheckSlugGet(
   request: NextRequest | Request,
-  deps: AdminApiDeps = {}
+  deps: AdminApiDeps = {},
 ): Promise<Response> {
   const checkAuth = deps.checkAuth ?? assertAdminApiSession;
   const authResult = await checkAuth(request.headers);
@@ -21,7 +21,7 @@ export async function handleCheckSlugGet(
       const slug = await service.generateUniqueRandomSlug(6);
       return Response.json(
         { available: true, normalizedSlug: slug },
-        { status: 200 }
+        { status: 200 },
       );
     }
 
@@ -36,7 +36,7 @@ export async function handleCheckSlugGet(
             message: "The 'slug' parameter is required.",
           },
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 

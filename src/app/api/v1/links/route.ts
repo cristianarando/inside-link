@@ -22,7 +22,7 @@ export function handleLinkError(err: unknown): Response {
           details: err.details,
         },
       },
-      { status: httpStatusForLinkError(err.code) }
+      { status: httpStatusForLinkError(err.code) },
     );
   }
 
@@ -33,13 +33,13 @@ export function handleLinkError(err: unknown): Response {
         message: "Internal server error while processing link.",
       },
     },
-    { status: 500 }
+    { status: 500 },
   );
 }
 
 export async function handleListLinksGet(
   request: NextRequest | Request,
-  deps: AdminApiDeps = {}
+  deps: AdminApiDeps = {},
 ): Promise<Response> {
   const checkAuth = deps.checkAuth ?? assertAdminApiSession;
   const authResult = await checkAuth(request.headers);
@@ -66,7 +66,7 @@ export async function handleListLinksGet(
 
 export async function handleCreateLinkPost(
   request: NextRequest | Request,
-  deps: AdminApiDeps = {}
+  deps: AdminApiDeps = {},
 ): Promise<Response> {
   const checkAuth = deps.checkAuth ?? assertAdminApiSession;
   const authResult = await checkAuth(request.headers);
@@ -86,7 +86,7 @@ export async function handleCreateLinkPost(
           message: "Request body is not valid JSON.",
         },
       },
-      { status: 400 }
+      { status: 400 },
     );
   }
 

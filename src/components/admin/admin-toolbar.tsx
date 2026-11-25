@@ -107,7 +107,7 @@ export function AdminToolbar({
                 "cursor-pointer rounded-lg px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50",
                 selectedCategory === cat.id
                   ? "bg-emerald-500 font-semibold text-zinc-950"
-                  : "bg-[#09090b]/80 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                  : "bg-[#09090b]/80 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200",
               )}
             >
               {cat.label}
@@ -125,7 +125,7 @@ export function AdminToolbar({
                 "cursor-pointer rounded-lg px-2.5 py-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50",
                 selectedStatus === st.id
                   ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-                  : "text-zinc-500 hover:bg-zinc-800/60 hover:text-zinc-300"
+                  : "text-zinc-500 hover:bg-zinc-800/60 hover:text-zinc-300",
               )}
             >
               {st.label}

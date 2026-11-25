@@ -1,4 +1,16 @@
-import { and, asc, desc, eq, gte, isNotNull, isNull, lt, ne, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  isNotNull,
+  isNull,
+  lt,
+  ne,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import { clickEvents, links } from "../db/schema";
 import type { AppDatabase } from "./link.service";
@@ -74,7 +86,7 @@ function roundOneDecimal(value: number): number {
 function mapBreakdownRows(
   rows: Array<{ key: string | null; count: number }>,
   total: number,
-  fallbackKey: string
+  fallbackKey: string,
 ): BreakdownItem[] {
   if (total === 0) return [];
   return rows.map((row) => {
@@ -89,7 +101,7 @@ function mapBreakdownRows(
 
 function parseHubLinkLabels(
   hubLinksJson: string | null,
-  target: Map<string, string>
+  target: Map<string, string>,
 ): void {
   if (!hubLinksJson) return;
   try {
@@ -114,7 +126,11 @@ function parseHubLinkLabels(
 }
 
 export function createAnalyticsService(db: AppDatabase) {
-  function breakdownQuery(col: AnySQLiteColumn, conditions: SQL[], limit: number) {
+  function breakdownQuery(
+    col: AnySQLiteColumn,
+    conditions: SQL[],
+    limit: number,
+  ) {
     const countExpr = sql<number>`COUNT(*)`;
     return db
       .select({
@@ -140,16 +156,42 @@ export function createAnalyticsService(db: AppDatabase) {
 
     // Start of UTC day (days - 1) days ago, end of current UTC day, and preceding N-day window
     const startUtc = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (days - 1), 0, 0, 0, 0)
+      Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() - (days - 1),
+        0,
+        0,
+        0,
+        0,
+      ),
     );
     const endUtc = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0)
+      Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() + 1,
+        0,
+        0,
+        0,
+        0,
+      ),
     );
     const prevStartUtc = new Date(
-      Date.UTC(startUtc.getUTCFullYear(), startUtc.getUTCMonth(), startUtc.getUTCDate() - days, 0, 0, 0, 0)
+      Date.UTC(
+        startUtc.getUTCFullYear(),
+        startUtc.getUTCMonth(),
+        startUtc.getUTCDate() - days,
+        0,
+        0,
+        0,
+        0,
+      ),
     );
 
-    const linkFilter: SQL[] = isOverview ? [] : [eq(clickEvents.linkId, input.linkId)];
+    const linkFilter: SQL[] = isOverview
+      ? []
+      : [eq(clickEvents.linkId, input.linkId)];
 
     const primaryEventFilters: SQL[] = [
       ...linkFilter,
@@ -214,15 +256,35 @@ export function createAnalyticsService(db: AppDatabase) {
       .groupBy(dayExpr)
       .orderBy(asc(dayExpr));
 
-    const countriesQuery = breakdownQuery(clickEvents.country, primaryEventFilters, 10);
-    const devicesQuery = breakdownQuery(clickEvents.device, primaryEventFilters, 5);
+    const countriesQuery = breakdownQuery(
+      clickEvents.country,
+      primaryEventFilters,
+      10,
+    );
+    const devicesQuery = breakdownQuery(
+      clickEvents.device,
+      primaryEventFilters,
+      5,
+    );
     const osQuery = breakdownQuery(clickEvents.os, primaryEventFilters, 6);
-    const browsersQuery = breakdownQuery(clickEvents.browser, primaryEventFilters, 6);
-    const referrersQuery = breakdownQuery(clickEvents.referrer, primaryEventFilters, 10);
+    const browsersQuery = breakdownQuery(
+      clickEvents.browser,
+      primaryEventFilters,
+      6,
+    );
+    const referrersQuery = breakdownQuery(
+      clickEvents.referrer,
+      primaryEventFilters,
+      10,
+    );
     const queryRefsQuery = breakdownQuery(
       clickEvents.queryParamRef,
-      [...primaryEventFilters, isNotNull(clickEvents.queryParamRef), ne(clickEvents.queryParamRef, "")],
-      10
+      [
+        ...primaryEventFilters,
+        isNotNull(clickEvents.queryParamRef),
+        ne(clickEvents.queryParamRef, ""),
+      ],
+      10,
     );
 
     const subLinksQuery = db
@@ -261,11 +323,15 @@ export function createAnalyticsService(db: AppDatabase) {
           eq(clickEvents.linkId, links.id),
           isNull(clickEvents.subLinkId),
           gte(clickEvents.clickedAt, startUtc),
-          lt(clickEvents.clickedAt, endUtc)
-        )
+          lt(clickEvents.clickedAt, endUtc),
+        ),
       )
       .groupBy(links.id)
-      .orderBy(desc(topLinkClicksExpr), desc(links.clicksCount), asc(links.slug))
+      .orderBy(
+        desc(topLinkClicksExpr),
+        desc(links.clicksCount),
+        asc(links.slug),
+      )
       .limit(8);
 
     const [
@@ -310,7 +376,14 @@ export function createAnalyticsService(db: AppDatabase) {
     const dailyMap = new Map<string, number>();
     for (let i = 0; i < days; i++) {
       const d = new Date(
-        Date.UTC(startUtc.getUTCFullYear(), startUtc.getUTCMonth(), startUtc.getUTCDate() + i, 0, 0, 0)
+        Date.UTC(
+          startUtc.getUTCFullYear(),
+          startUtc.getUTCMonth(),
+          startUtc.getUTCDate() + i,
+          0,
+          0,
+          0,
+        ),
       );
       dailyMap.set(toUtcDateKey(d), 0);
     }
@@ -324,15 +397,21 @@ export function createAnalyticsService(db: AppDatabase) {
       }
     }
 
-    const dailySeries: DailySeriesPoint[] = Array.from(dailyMap.entries()).map(([date, clicks]) => ({
-      date,
-      clicks,
-    }));
+    const dailySeries: DailySeriesPoint[] = Array.from(dailyMap.entries()).map(
+      ([date, clicks]) => ({
+        date,
+        clicks,
+      }),
+    );
 
     const deltaPercentage =
       previousPeriodClicks === 0
         ? null
-        : roundOneDecimal(((totalClicksInRange - previousPeriodClicks) / previousPeriodClicks) * 100);
+        : roundOneDecimal(
+            ((totalClicksInRange - previousPeriodClicks) /
+              previousPeriodClicks) *
+              100,
+          );
 
     const subLinkLabelMap = new Map<string, string>();
     for (const cfg of hubConfigRows) {
@@ -345,7 +424,10 @@ export function createAnalyticsService(db: AppDatabase) {
         subLinkId: row.subLinkId,
         label: subLinkLabelMap.get(row.subLinkId) ?? row.subLinkId,
         count,
-        percentage: hubSubLinkClicks > 0 ? roundOneDecimal((count / hubSubLinkClicks) * 100) : 0,
+        percentage:
+          hubSubLinkClicks > 0
+            ? roundOneDecimal((count / hubSubLinkClicks) * 100)
+            : 0,
       };
     });
 

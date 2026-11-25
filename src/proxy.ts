@@ -8,7 +8,8 @@ export function isTechnicalPreviewHost(hostHeader: string | null): boolean {
 
 export function proxy(request: NextRequest): NextResponse {
   const response = NextResponse.next();
-  const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
+  const host =
+    request.headers.get("x-forwarded-host") || request.headers.get("host");
 
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");

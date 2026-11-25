@@ -14,7 +14,9 @@ const serverSchema = z.object({
   GITHUB_CLIENT_SECRET: z.string().min(1, "GITHUB_CLIENT_SECRET is required"),
   ALLOWED_GITHUB_ID: z.string().min(1, "ALLOWED_GITHUB_ID is required"),
   ALLOWED_GITHUB_EMAIL: z.string().email().optional(),
-  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  NODE_ENV: z
+    .enum(["development", "test", "production"])
+    .default("development"),
 });
 
 const clientSchema = z.object({
@@ -44,7 +46,7 @@ function validateEnv(): ServerEnv & ClientEnv {
   if (!clientResult.success) {
     const formatted = clientResult.error.format();
     throw new Error(
-      `[ENV] Invalid client environment variables:\n${JSON.stringify(formatted, null, 2)}`
+      `[ENV] Invalid client environment variables:\n${JSON.stringify(formatted, null, 2)}`,
     );
   }
 
@@ -64,7 +66,7 @@ function validateEnv(): ServerEnv & ClientEnv {
     if (!serverResult.success) {
       const formatted = serverResult.error.format();
       throw new Error(
-        `[ENV] Invalid server environment variables:\n${JSON.stringify(formatted, null, 2)}`
+        `[ENV] Invalid server environment variables:\n${JSON.stringify(formatted, null, 2)}`,
       );
     }
 
@@ -93,5 +95,7 @@ export function getCanonicalUrl(): string {
 }
 
 export function getCanonicalHost(): string {
-  return getCanonicalUrl().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+  return getCanonicalUrl()
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/+$/, "");
 }

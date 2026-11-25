@@ -9,7 +9,9 @@ export interface InfiniteScrollGuardState {
   disabled?: boolean;
 }
 
-export function shouldTriggerInfiniteLoad(state: InfiniteScrollGuardState): boolean {
+export function shouldTriggerInfiniteLoad(
+  state: InfiniteScrollGuardState,
+): boolean {
   if (state.disabled) return false;
   if (!state.isIntersecting) return false;
   if (!state.hasNextPage) return false;
@@ -24,7 +26,7 @@ export interface ObserverLike {
 
 export type ObserverFactory = (
   callback: (entries: Array<{ isIntersecting: boolean }>) => void,
-  options?: { rootMargin?: string; threshold?: number }
+  options?: { rootMargin?: string; threshold?: number },
 ) => ObserverLike;
 
 export function attachInfiniteScrollObserver(params: {
@@ -79,7 +81,7 @@ export function attachInfiniteScrollObserver(params: {
         onLoadMore();
       }
     },
-    { rootMargin, threshold: 0.05 }
+    { rootMargin, threshold: 0.05 },
   );
 
   observer.observe(element);
@@ -145,7 +147,7 @@ export function useInfiniteScroll(options: UseInfiniteScrollOptions) {
       nodeRef.current = node;
       rebind();
     },
-    [rebind]
+    [rebind],
   );
 
   return { sentinelRef };

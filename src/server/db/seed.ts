@@ -10,8 +10,13 @@ if (fs.existsSync(".env")) {
 }
 
 async function runSeed() {
-  if (process.env.NODE_ENV === "production" && !process.argv.includes("--force")) {
-    console.error("ERROR: Refusing to seed database in production without --force flag.");
+  if (
+    process.env.NODE_ENV === "production" &&
+    !process.argv.includes("--force")
+  ) {
+    console.error(
+      "ERROR: Refusing to seed database in production without --force flag.",
+    );
     process.exit(1);
   }
 
@@ -23,7 +28,7 @@ async function runSeed() {
     !process.argv.includes("--allow-remote-wipe")
   ) {
     console.error(
-      `ERROR: Refusing to wipe/seed remote database (${url}) without --allow-remote-wipe flag.`
+      `ERROR: Refusing to wipe/seed remote database (${url}) without --allow-remote-wipe flag.`,
     );
     process.exit(1);
   }
@@ -52,7 +57,8 @@ async function runSeed() {
       redirectStatus: 307,
       forwardQueryParams: true,
       title: "GitHub Profile",
-      description: "Open-source repositories, software architecture, and code contributions.",
+      description:
+        "Open-source repositories, software architecture, and code contributions.",
       category: "social" as const,
       tagsJson: JSON.stringify(["github", "code", "opensource"]),
       icon: "github",
@@ -71,7 +77,8 @@ async function runSeed() {
       redirectStatus: 307,
       forwardQueryParams: true,
       title: "LinkedIn Profile",
-      description: "Professional background, engineering experience, and network.",
+      description:
+        "Professional background, engineering experience, and network.",
       category: "social" as const,
       tagsJson: JSON.stringify(["linkedin", "career", "network"]),
       icon: "linkedin",
@@ -113,7 +120,8 @@ async function runSeed() {
         },
       ]),
       title: "Smart Travel Guide App",
-      description: "Mobile and web platform for travel discovery with offline recommendations.",
+      description:
+        "Mobile and web platform for travel discovery with offline recommendations.",
       category: "project" as const,
       tagsJson: JSON.stringify(["travel", "react-native", "nextjs", "offline"]),
       icon: "map-pin",
@@ -132,7 +140,8 @@ async function runSeed() {
       redirectStatus: 307,
       forwardQueryParams: true,
       title: "Curriculum Vitae (Resume)",
-      description: "Up-to-date downloadable PDF resume and engineering experience.",
+      description:
+        "Up-to-date downloadable PDF resume and engineering experience.",
       category: "resource" as const,
       tagsJson: JSON.stringify(["cv", "resume", "pdf"]),
       icon: "file-text",
@@ -167,7 +176,8 @@ async function runSeed() {
         },
       ]),
       title: "InsideLink Platform",
-      description: "Custom URL shortener, project micro-landings, and link hub built with Turso & Next.js.",
+      description:
+        "Custom URL shortener, project micro-landings, and link hub built with Turso & Next.js.",
       category: "project" as const,
       tagsJson: JSON.stringify(["nextjs", "turso", "drizzle", "system-design"]),
       icon: "link",
@@ -182,11 +192,13 @@ async function runSeed() {
       id: ulid(),
       slug: "presupuesto-confidencial",
       type: "DIRECT" as const,
-      destinationUrl: "https://drive.google.com/file/d/demo-presupuesto-hash/view",
+      destinationUrl:
+        "https://drive.google.com/file/d/demo-presupuesto-hash/view",
       redirectStatus: 307,
       forwardQueryParams: false,
       title: "Project Proposal & Quote (Protected)",
-      description: "Confidential commercial proposal with detailed breakdown (Demo PIN: 1234).",
+      description:
+        "Confidential commercial proposal with detailed breakdown (Demo PIN: 1234).",
       category: "personal" as const,
       tagsJson: JSON.stringify(["commercial", "private"]),
       icon: "lock",
@@ -235,7 +247,8 @@ async function runSeed() {
         },
       ]),
       title: "TiendaNext E-Commerce",
-      description: "Conversational commerce platform powered by WhatsApp and NestJS.",
+      description:
+        "Conversational commerce platform powered by WhatsApp and NestJS.",
       category: "project" as const,
       tagsJson: JSON.stringify(["ecommerce", "whatsapp", "nestjs"]),
       icon: "shopping-bag",
@@ -254,7 +267,8 @@ async function runSeed() {
       redirectStatus: 307,
       forwardQueryParams: false,
       title: "Direct WhatsApp Chat",
-      description: "Direct messaging channel for quick inquiries and collaboration.",
+      description:
+        "Direct messaging channel for quick inquiries and collaboration.",
       category: "social" as const,
       tagsJson: JSON.stringify(["whatsapp", "contact"]),
       icon: "message-circle",
@@ -293,7 +307,8 @@ async function runSeed() {
       redirectStatus: 307,
       forwardQueryParams: true,
       title: "3D Solar System in Three.js",
-      description: "Interactive 3D solar system simulator built with WebGL and Three.js.",
+      description:
+        "Interactive 3D solar system simulator built with WebGL and Three.js.",
       category: "project" as const,
       tagsJson: JSON.stringify(["threejs", "webgl", "canvas"]),
       icon: "globe",
@@ -312,7 +327,8 @@ async function runSeed() {
       redirectStatus: 307,
       forwardQueryParams: true,
       title: "Bolivia Tech Community",
-      description: "Open directory of tech communities, events, and developer resources.",
+      description:
+        "Open directory of tech communities, events, and developer resources.",
       category: "resource" as const,
       tagsJson: JSON.stringify(["community", "bolivia", "tech"]),
       icon: "users",
@@ -331,7 +347,8 @@ async function runSeed() {
       redirectStatus: 307,
       forwardQueryParams: true,
       title: "AI Engineering Podcast Episodes",
-      description: "Deep-dive discussions on autonomous agents, LLMs, and distributed systems.",
+      description:
+        "Deep-dive discussions on autonomous agents, LLMs, and distributed systems.",
       category: "resource" as const,
       tagsJson: JSON.stringify(["podcast", "ai", "audio"]),
       icon: "headphones",
@@ -369,7 +386,8 @@ async function runSeed() {
       redirectStatus: 307,
       forwardQueryParams: true,
       title: "Figma Design Tokens & UI Kit",
-      description: "Reusable UI components and visual design system guidelines.",
+      description:
+        "Reusable UI components and visual design system guidelines.",
       category: "resource" as const,
       tagsJson: JSON.stringify(["figma", "ui", "design"]),
       icon: "palette",
@@ -388,7 +406,8 @@ async function runSeed() {
       redirectStatus: 307,
       forwardQueryParams: true,
       title: "X / Twitter",
-      description: "Short thoughts on software engineering, web performance, and AI.",
+      description:
+        "Short thoughts on software engineering, web performance, and AI.",
       category: "social" as const,
       tagsJson: JSON.stringify(["twitter", "x"]),
       icon: "twitter",
@@ -407,7 +426,8 @@ async function runSeed() {
       redirectStatus: 307,
       forwardQueryParams: true,
       title: "YouTube Channel",
-      description: "Programming tutorials, system design walkthroughs, and live coding.",
+      description:
+        "Programming tutorials, system design walkthroughs, and live coding.",
       category: "social" as const,
       tagsJson: JSON.stringify(["youtube", "video", "tutorials"]),
       icon: "youtube",
@@ -442,12 +462,32 @@ async function runSeed() {
   await db.insert(schema.links).values(seedLinks);
   console.log(`Inserted ${seedLinks.length} links successfully.`);
 
-  console.log("Generating 120 click events distributed across the last 30 days...");
-  const countries = ["BO", "BO", "BO", "ES", "ES", "US", "AR", "MX", "PE", "CL"];
+  console.log(
+    "Generating 120 click events distributed across the last 30 days...",
+  );
+  const countries = [
+    "BO",
+    "BO",
+    "BO",
+    "ES",
+    "ES",
+    "US",
+    "AR",
+    "MX",
+    "PE",
+    "CL",
+  ];
   const devices = ["desktop", "mobile", "mobile", "tablet"] as const;
   const osList = ["Windows", "macOS", "Android", "iOS", "Linux"] as const;
   const browsers = ["Chrome", "Safari", "Firefox", "Edge"] as const;
-  const referrers = ["linkedin.com", "github.com", "t.co", "Direct", "Direct", "wa.me"];
+  const referrers = [
+    "linkedin.com",
+    "github.com",
+    "t.co",
+    "Direct",
+    "Direct",
+    "wa.me",
+  ];
 
   const seedEvents: schema.NewClickEvent[] = [];
   const publicLinks = seedLinks.filter((l) => l.clicksCount > 0);
@@ -464,8 +504,10 @@ async function runSeed() {
       city: "La Paz",
       device: devices[Math.floor(Math.random() * devices.length)] || "desktop",
       os: osList[Math.floor(Math.random() * osList.length)] || "Windows",
-      browser: browsers[Math.floor(Math.random() * browsers.length)] || "Chrome",
-      referrer: referrers[Math.floor(Math.random() * referrers.length)] || "Direct",
+      browser:
+        browsers[Math.floor(Math.random() * browsers.length)] || "Chrome",
+      referrer:
+        referrers[Math.floor(Math.random() * referrers.length)] || "Direct",
       queryParamRef: i % 4 === 0 ? "cv_profile" : null,
       clickedAt: eventTime,
     });

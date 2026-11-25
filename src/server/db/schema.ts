@@ -23,13 +23,19 @@ export const links = sqliteTable(
     title: text("title").notNull(),
     description: text("description"),
     ogImageUrl: text("og_image_url"),
-    ogMode: text("og_mode", { enum: ["auto", "custom", "minimal"] }).notNull().default("auto"),
+    ogMode: text("og_mode", { enum: ["auto", "custom", "minimal"] })
+      .notNull()
+      .default("auto"),
     category: text("category").notNull().default("project"),
     tagsJson: text("tags_json").notNull().default("[]"),
     icon: text("icon").notNull().default("link"),
     isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
-    isPublic: integer("is_public", { mode: "boolean" }).notNull().default(false),
-    isPinned: integer("is_pinned", { mode: "boolean" }).notNull().default(false),
+    isPublic: integer("is_public", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    isPinned: integer("is_pinned", { mode: "boolean" })
+      .notNull()
+      .default(false),
     passwordHash: text("password_hash"),
     expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
     maxClicks: integer("max_clicks"),
@@ -44,10 +50,10 @@ export const links = sqliteTable(
       table.isPublic,
       table.isActive,
       table.isPinned,
-      table.id
+      table.id,
     ),
     index("idx_links_category").on(table.category, table.isPinned, table.id),
-  ]
+  ],
 );
 
 export const clickEvents = sqliteTable(
@@ -70,8 +76,12 @@ export const clickEvents = sqliteTable(
   (table) => [
     index("idx_click_events_link_time").on(table.linkId, table.clickedAt),
     index("idx_click_events_global_time").on(table.clickedAt),
-    index("idx_click_events_sub_link").on(table.linkId, table.subLinkId, table.clickedAt),
-  ]
+    index("idx_click_events_sub_link").on(
+      table.linkId,
+      table.subLinkId,
+      table.clickedAt,
+    ),
+  ],
 );
 
 export const pinAttempts = sqliteTable(
@@ -82,9 +92,11 @@ export const pinAttempts = sqliteTable(
       .notNull()
       .references(() => links.id, { onDelete: "cascade" }),
     attemptsCount: integer("attempts_count").notNull().default(1),
-    windowExpiresAt: integer("window_expires_at", { mode: "timestamp_ms" }).notNull(),
+    windowExpiresAt: integer("window_expires_at", {
+      mode: "timestamp_ms",
+    }).notNull(),
   },
-  (table) => [index("idx_pin_attempts_expires").on(table.windowExpiresAt)]
+  (table) => [index("idx_pin_attempts_expires").on(table.windowExpiresAt)],
 );
 
 // Better-Auth Tables
@@ -92,7 +104,9 @@ export const user = sqliteTable("user", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
-  emailVerified: integer("email_verified", { mode: "boolean" }).notNull().default(false),
+  emailVerified: integer("email_verified", { mode: "boolean" })
+    .notNull()
+    .default(false),
   image: text("image"),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
@@ -121,8 +135,12 @@ export const account = sqliteTable("account", {
   accessToken: text("access_token"),
   refreshToken: text("refresh_token"),
   idToken: text("id_token"),
-  accessTokenExpiresAt: integer("access_token_expires_at", { mode: "timestamp_ms" }),
-  refreshTokenExpiresAt: integer("refresh_token_expires_at", { mode: "timestamp_ms" }),
+  accessTokenExpiresAt: integer("access_token_expires_at", {
+    mode: "timestamp_ms",
+  }),
+  refreshTokenExpiresAt: integer("refresh_token_expires_at", {
+    mode: "timestamp_ms",
+  }),
   scope: text("scope"),
   password: text("password"),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),

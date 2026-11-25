@@ -18,12 +18,9 @@ export const SlugSchema = z
   // Validate raw input BEFORE normalization, since normalizeSlug strips dots ("favicon.ico" -> "faviconico").
   .refine(
     (raw) => !raw.includes("."),
-    "Slug cannot contain dots or file extensions"
+    "Slug cannot contain dots or file extensions",
   )
-  .refine(
-    (raw) => !isReservedSlug(raw),
-    "Slug matches a reserved system route"
-  )
+  .refine((raw) => !isReservedSlug(raw), "Slug matches a reserved system route")
   .transform((val) => normalizeSlug(val))
   .pipe(
     z
@@ -32,23 +29,28 @@ export const SlugSchema = z
       .max(100, "Slug cannot exceed 100 characters")
       .regex(
         /^[a-z0-9]+(?:[-_][a-z0-9]+)*$/,
-        "Slug may only contain lowercase letters, numbers, hyphens, and underscores, without leading or trailing separators"
+        "Slug may only contain lowercase letters, numbers, hyphens, and underscores, without leading or trailing separators",
       )
       .refine(
         (val) => !val.includes("."),
-        "Slug cannot contain dots or file extensions"
+        "Slug cannot contain dots or file extensions",
       )
       .refine(
         (val) => !isReservedSlug(val),
-        "Slug matches a reserved system route"
-      )
+        "Slug matches a reserved system route",
+      ),
   );
 
 export type ValidatedSlug = z.infer<typeof SlugSchema>;
 
 export type SlugClassification =
   | { ok: true; normalized: string }
-  | { ok: false; normalized: string; reason: "RESERVED" | "INVALID"; message: string };
+  | {
+      ok: false;
+      normalized: string;
+      reason: "RESERVED" | "INVALID";
+      message: string;
+    };
 
 /**
  * Classifies a raw slug, distinguishing "reserved" from "syntactically invalid".
@@ -57,7 +59,10 @@ export type SlugClassification =
 export function classifySlug(raw: string): SlugClassification {
   const normalized = normalizeSlug(raw);
 
-  if (isReservedSlug(raw) || (normalized.length > 0 && isReservedSlug(normalized))) {
+  if (
+    isReservedSlug(raw) ||
+    (normalized.length > 0 && isReservedSlug(normalized))
+  ) {
     return {
       ok: false,
       normalized,

@@ -1,7 +1,15 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowUpRight, Check, Copy, Lock, Pin, Search, Sparkles } from "lucide-react";
+import {
+  ArrowUpRight,
+  Check,
+  Copy,
+  Lock,
+  Pin,
+  Search,
+  Sparkles,
+} from "lucide-react";
 import { LinkIcon } from "@/components/ui/icons";
 import { Badge, Input, Skeleton } from "@/components/ui/primitives";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
@@ -21,7 +29,7 @@ const CATEGORY_TABS: { value: LinkCategory | "all"; label: string }[] = [
 ];
 
 const VALID_CATEGORIES = new Set<LinkCategory | "all">(
-  CATEGORY_TABS.map((t) => t.value)
+  CATEGORY_TABS.map((t) => t.value),
 );
 
 export interface PublicLinkDirectoryProps {
@@ -31,8 +39,12 @@ export interface PublicLinkDirectoryProps {
 export function PublicLinkDirectory({ initialPage }: PublicLinkDirectoryProps) {
   const canonicalHost = getCanonicalHost();
   const [items, setItems] = useState<PublicLinkDTO[]>(initialPage.items);
-  const [nextCursor, setNextCursor] = useState<string | null>(initialPage.nextCursor);
-  const [hasNextPage, setHasNextPage] = useState<boolean>(initialPage.hasNextPage);
+  const [nextCursor, setNextCursor] = useState<string | null>(
+    initialPage.nextCursor,
+  );
+  const [hasNextPage, setHasNextPage] = useState<boolean>(
+    initialPage.hasNextPage,
+  );
 
   const [category, setCategory] = useState<LinkCategory | "all">("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -52,7 +64,11 @@ export function PublicLinkDirectory({ initialPage }: PublicLinkDirectoryProps) {
     const urlQuery = params.get("q");
 
     let changed = false;
-    if (urlCategory && VALID_CATEGORIES.has(urlCategory) && urlCategory !== "all") {
+    if (
+      urlCategory &&
+      VALID_CATEGORIES.has(urlCategory) &&
+      urlCategory !== "all"
+    ) {
       setCategory(urlCategory);
       changed = true;
     }
@@ -74,7 +90,7 @@ export function PublicLinkDirectory({ initialPage }: PublicLinkDirectoryProps) {
       if (debouncedQuery.trim()) params.set("q", debouncedQuery.trim());
       return `/api/v1/links/public?${params.toString()}`;
     },
-    [category, debouncedQuery]
+    [category, debouncedQuery],
   );
 
   // Sync URL query string with active category & search filters
@@ -84,7 +100,9 @@ export function PublicLinkDirectory({ initialPage }: PublicLinkDirectoryProps) {
     if (category !== "all") params.set("category", category);
     if (debouncedQuery.trim()) params.set("q", debouncedQuery.trim());
     const qs = params.toString();
-    const nextUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+    const nextUrl = qs
+      ? `${window.location.pathname}?${qs}`
+      : window.location.pathname;
     window.history.replaceState(null, "", nextUrl);
   }, [category, debouncedQuery]);
 
@@ -134,7 +152,13 @@ export function PublicLinkDirectory({ initialPage }: PublicLinkDirectoryProps) {
     } finally {
       setIsFetchingNextPage(false);
     }
-  }, [hasNextPage, nextCursor, isFetchingNextPage, isInitialLoading, buildPublicQueryUrl]);
+  }, [
+    hasNextPage,
+    nextCursor,
+    isFetchingNextPage,
+    isInitialLoading,
+    buildPublicQueryUrl,
+  ]);
 
   const { sentinelRef } = useInfiniteScroll({
     hasNextPage,
@@ -145,7 +169,7 @@ export function PublicLinkDirectory({ initialPage }: PublicLinkDirectoryProps) {
 
   const handleCopyShortLink = async (
     e: React.MouseEvent<HTMLButtonElement>,
-    item: PublicLinkDTO
+    item: PublicLinkDTO,
   ) => {
     e.preventDefault();
     e.stopPropagation();
@@ -164,7 +188,11 @@ export function PublicLinkDirectory({ initialPage }: PublicLinkDirectoryProps) {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Link categories">
+        <div
+          className="flex flex-wrap gap-1.5"
+          role="tablist"
+          aria-label="Link categories"
+        >
           {CATEGORY_TABS.map((tab) => {
             const active = category === tab.value;
             return (

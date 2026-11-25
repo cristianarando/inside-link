@@ -49,7 +49,7 @@ export default function LoginForm() {
       setErrorMsg(
         err instanceof Error
           ? err.message
-          : "Failed to sign in with GitHub. Access is restricted to the site owner."
+          : "Failed to sign in with GitHub. Access is restricted to the site owner.",
       );
     }
   };

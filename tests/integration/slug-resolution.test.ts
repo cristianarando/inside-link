@@ -48,26 +48,31 @@ describe("Slug Resolution Service & GET /[slug] Route Integration", () => {
     const res307 = await handleSlugGet(
       new Request("https://cristianarando.dev/github", {
         headers: {
-          "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130.0",
+          "user-agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130.0",
           "x-vercel-ip-country": "BO",
           referer: "https://www.linkedin.com/",
         },
       }),
       "github",
-      ctx.resolutionService
+      ctx.resolutionService,
     );
 
     expect(res307.status).toBe(307);
-    expect(res307.headers.get("Location")).toBe("https://github.com/cristianarando");
+    expect(res307.headers.get("Location")).toBe(
+      "https://github.com/cristianarando",
+    );
 
     const res301 = await handleSlugGet(
       new Request("https://cristianarando.dev/linkedin-perm"),
       "linkedin-perm",
-      ctx.resolutionService
+      ctx.resolutionService,
     );
 
     expect(res301.status).toBe(301);
-    expect(res301.headers.get("Location")).toBe("https://linkedin.com/in/cristianarando");
+    expect(res301.headers.get("Location")).toBe(
+      "https://linkedin.com/in/cristianarando",
+    );
   });
 
   it("forwards incoming query parameters safely when forwardQueryParams is true and preserves target params", async () => {
@@ -75,7 +80,8 @@ describe("Slug Resolution Service & GET /[slug] Route Integration", () => {
       slug: "repo-con-params",
       title: "Repo",
       type: "DIRECT",
-      destinationUrl: "https://github.com/cristianarando/inside-link?tab=readme",
+      destinationUrl:
+        "https://github.com/cristianarando/inside-link?tab=readme",
       forwardQueryParams: true,
     });
 
@@ -87,15 +93,18 @@ describe("Slug Resolution Service & GET /[slug] Route Integration", () => {
       forwardQueryParams: false,
     });
 
-    const forwarded = await ctx.resolutionService.resolveSlugRequest("repo-con-params", {
-      searchParams: new URLSearchParams("ref=cv&utm_medium=bio&tab=hacked"),
-    });
+    const forwarded = await ctx.resolutionService.resolveSlugRequest(
+      "repo-con-params",
+      {
+        searchParams: new URLSearchParams("ref=cv&utm_medium=bio&tab=hacked"),
+      },
+    );
 
     expect(forwarded.kind).toBe("REDIRECT");
     if (forwarded.kind === "REDIRECT") {
       const targetUrl = new URL(forwarded.location);
       expect(targetUrl.origin + targetUrl.pathname).toBe(
-        "https://github.com/cristianarando/inside-link"
+        "https://github.com/cristianarando/inside-link",
       );
       expect(targetUrl.searchParams.get("ref")).toBe("cv");
       expect(targetUrl.searchParams.get("utm_medium")).toBe("bio");
@@ -103,13 +112,18 @@ describe("Slug Resolution Service & GET /[slug] Route Integration", () => {
       expect(targetUrl.searchParams.get("tab")).toBe("readme");
     }
 
-    const notForwarded = await ctx.resolutionService.resolveSlugRequest("repo-sin-params", {
-      searchParams: new URLSearchParams("ref=cv&utm_medium=bio"),
-    });
+    const notForwarded = await ctx.resolutionService.resolveSlugRequest(
+      "repo-sin-params",
+      {
+        searchParams: new URLSearchParams("ref=cv&utm_medium=bio"),
+      },
+    );
 
     expect(notForwarded.kind).toBe("REDIRECT");
     if (notForwarded.kind === "REDIRECT") {
-      expect(notForwarded.location).toBe("https://github.com/cristianarando/inside-link");
+      expect(notForwarded.location).toBe(
+        "https://github.com/cristianarando/inside-link",
+      );
     }
   });
 
@@ -117,14 +131,15 @@ describe("Slug Resolution Service & GET /[slug] Route Integration", () => {
     const unknown = await handleSlugGet(
       new Request("https://cristianarando.dev/no-existe"),
       "no-existe",
-      ctx.resolutionService
+      ctx.resolutionService,
     );
     expect(unknown.status).toBe(404);
 
     const reserved = await ctx.resolutionService.resolveSlugRequest("admin");
     expect(reserved.kind).toBe("NOT_FOUND");
 
-    const staticAsset = await ctx.resolutionService.resolveSlugRequest("favicon.ico");
+    const staticAsset =
+      await ctx.resolutionService.resolveSlugRequest("favicon.ico");
     expect(staticAsset.kind).toBe("NOT_FOUND");
   });
 
@@ -156,7 +171,7 @@ describe("Slug Resolution Service & GET /[slug] Route Integration", () => {
     const pausedRes = await handleSlugGet(
       new Request("https://cristianarando.dev/enlace-pausado"),
       "enlace-pausado",
-      ctx.resolutionService
+      ctx.resolutionService,
     );
     expect(pausedRes.status).toBe(410);
     expect(pausedRes.headers.get("Location")).toBeNull();
@@ -164,7 +179,7 @@ describe("Slug Resolution Service & GET /[slug] Route Integration", () => {
     const expiredRes = await handleSlugGet(
       new Request("https://cristianarando.dev/enlace-vencido"),
       "enlace-vencido",
-      ctx.resolutionService
+      ctx.resolutionService,
     );
     expect(expiredRes.status).toBe(410);
 
@@ -174,7 +189,7 @@ describe("Slug Resolution Service & GET /[slug] Route Integration", () => {
         headers: { "user-agent": "Mozilla/5.0 Chrome/130.0" },
       }),
       "enlace-un-clic",
-      ctx.resolutionService
+      ctx.resolutionService,
     );
     expect(firstClick.status).toBe(307);
 
@@ -187,7 +202,7 @@ describe("Slug Resolution Service & GET /[slug] Route Integration", () => {
         headers: { "user-agent": "Mozilla/5.0 Chrome/130.0" },
       }),
       "enlace-un-clic",
-      ctx.resolutionService
+      ctx.resolutionService,
     );
     expect(secondClick.status).toBe(410);
   });
@@ -208,7 +223,7 @@ describe("Slug Resolution Service & GET /[slug] Route Integration", () => {
         headers: { "user-agent": "WhatsApp/2.24.1.78 A" },
       }),
       "promo-unica",
-      ctx.resolutionService
+      ctx.resolutionService,
     );
     expect(botRes.status).toBe(200);
     const botHtml = await botRes.text();
@@ -223,7 +238,7 @@ describe("Slug Resolution Service & GET /[slug] Route Integration", () => {
         },
       }),
       "promo-unica",
-      ctx.resolutionService
+      ctx.resolutionService,
     );
     expect(prefetchRes.status).toBe(307);
 
@@ -237,12 +252,13 @@ describe("Slug Resolution Service & GET /[slug] Route Integration", () => {
     const humanRes = await handleSlugGet(
       new Request("https://cristianarando.dev/promo-unica?ref=whatsapp_chat", {
         headers: {
-          "user-agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Safari/604.1",
+          "user-agent":
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Safari/604.1",
           "x-vercel-ip-country": "BO",
         },
       }),
       "promo-unica",
-      ctx.resolutionService
+      ctx.resolutionService,
     );
     expect(humanRes.status).toBe(307);
 

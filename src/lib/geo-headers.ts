@@ -12,19 +12,25 @@ export interface TrafficMetadata {
 
 export function extractTrafficMetadata(
   headers: Headers | Record<string, string | string[] | undefined>,
-  searchParams?: URLSearchParams | Record<string, string | undefined>
+  searchParams?: URLSearchParams | Record<string, string | undefined>,
 ): TrafficMetadata {
   const getHeader = (name: string): string | null => {
     if (typeof (headers as Headers).get === "function") {
       return (headers as Headers).get(name);
     }
-    const val = (headers as Record<string, string | string[] | undefined>)[name.toLowerCase()];
+    const val = (headers as Record<string, string | string[] | undefined>)[
+      name.toLowerCase()
+    ];
     if (Array.isArray(val)) return val[0] || null;
     return val || null;
   };
 
   // 1. País (prioridad: x-vercel-ip-country -> cf-ipcountry -> 'XX')
-  let country = (getHeader("x-vercel-ip-country") || getHeader("cf-ipcountry") || "XX").toUpperCase();
+  let country = (
+    getHeader("x-vercel-ip-country") ||
+    getHeader("cf-ipcountry") ||
+    "XX"
+  ).toUpperCase();
   if (!/^[A-Z]{2}$/.test(country)) {
     country = "XX";
   }

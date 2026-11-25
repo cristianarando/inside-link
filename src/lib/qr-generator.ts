@@ -85,8 +85,13 @@ function paethPredictor(a: number, b: number, c: number): number {
   return c;
 }
 
-function decodeRgbaPng(pngBuffer: Buffer): { width: number; height: number; pixels: Uint8Array } | null {
-  if (pngBuffer.length < 33 || !pngBuffer.subarray(0, 8).equals(PNG_SIGNATURE)) {
+function decodeRgbaPng(
+  pngBuffer: Buffer,
+): { width: number; height: number; pixels: Uint8Array } | null {
+  if (
+    pngBuffer.length < 33 ||
+    !pngBuffer.subarray(0, 8).equals(PNG_SIGNATURE)
+  ) {
     return null;
   }
 
@@ -118,7 +123,13 @@ function decodeRgbaPng(pngBuffer: Buffer): { width: number; height: number; pixe
     offset = dataEnd + 4;
   }
 
-  if (width <= 0 || height <= 0 || bitDepth !== 8 || colorType !== 6 || idatChunks.length === 0) {
+  if (
+    width <= 0 ||
+    height <= 0 ||
+    bitDepth !== 8 ||
+    colorType !== 6 ||
+    idatChunks.length === 0
+  ) {
     return null;
   }
 
@@ -146,7 +157,8 @@ function decodeRgbaPng(pngBuffer: Buffer): { width: number; height: number; pixe
       if (filter === 1) recon = (curr + left) & 0xff;
       else if (filter === 2) recon = (curr + up) & 0xff;
       else if (filter === 3) recon = (curr + ((left + up) >>> 1)) & 0xff;
-      else if (filter === 4) recon = (curr + paethPredictor(left, up, upLeft)) & 0xff;
+      else if (filter === 4)
+        recon = (curr + paethPredictor(left, up, upLeft)) & 0xff;
 
       pixels[outRow + x] = recon;
     }
@@ -155,7 +167,11 @@ function decodeRgbaPng(pngBuffer: Buffer): { width: number; height: number; pixe
   return { width, height, pixels };
 }
 
-function encodeRgbaPng(width: number, height: number, pixels: Uint8Array): Buffer {
+function encodeRgbaPng(
+  width: number,
+  height: number,
+  pixels: Uint8Array,
+): Buffer {
   const stride = width * 4;
   const raw = Buffer.alloc(height * (stride + 1));
   for (let y = 0; y < height; y++) {
@@ -190,7 +206,7 @@ function isInsideRoundedRect(
   y: number,
   w: number,
   h: number,
-  r: number
+  r: number,
 ): boolean {
   if (px < x || px >= x + w || py < y || py >= y + h) return false;
   const cx = px < x + r ? x + r : px > x + w - r - 1 ? x + w - r - 1 : px;
@@ -208,7 +224,7 @@ function fillRoundedRect(
   w: number,
   h: number,
   r: number,
-  color: RgbaColor
+  color: RgbaColor,
 ): void {
   const x0 = Math.max(0, Math.floor(x));
   const y0 = Math.max(0, Math.floor(y));
@@ -235,7 +251,7 @@ function drawBitmapText(
   centerY: number,
   pixelScale: number,
   gapPx: number,
-  color: RgbaColor
+  color: RgbaColor,
 ): void {
   const chars = text.split("");
   const glyphW = 5 * pixelScale;
@@ -273,7 +289,10 @@ function drawBitmapText(
   }
 }
 
-function compositeCenterBadgeOnPng(pngBuffer: Buffer, lightColorHex: string): Buffer {
+function compositeCenterBadgeOnPng(
+  pngBuffer: Buffer,
+  lightColorHex: string,
+): Buffer {
   const decoded = decodeRgbaPng(pngBuffer);
   if (!decoded) return pngBuffer;
 
@@ -287,14 +306,32 @@ function compositeCenterBadgeOnPng(pngBuffer: Buffer, lightColorHex: string): Bu
   const outerSize = Math.round(size * 0.21);
   const outerOffset = Math.round((size - outerSize) / 2);
   const outerRadius = Math.max(4, Math.round(size * 0.045));
-  fillRoundedRect(pixels, width, outerOffset, outerOffset, outerSize, outerSize, outerRadius, lightRgba);
+  fillRoundedRect(
+    pixels,
+    width,
+    outerOffset,
+    outerOffset,
+    outerSize,
+    outerSize,
+    outerRadius,
+    lightRgba,
+  );
 
   const innerSize = Math.round(size * 0.18);
   const innerOffset = Math.round((size - innerSize) / 2);
   const innerRadius = Math.max(3, Math.round(size * 0.036));
   const strokeWidth = Math.max(2, Math.round(size * 0.007));
 
-  fillRoundedRect(pixels, width, innerOffset, innerOffset, innerSize, innerSize, innerRadius, emeraldRgba);
+  fillRoundedRect(
+    pixels,
+    width,
+    innerOffset,
+    innerOffset,
+    innerSize,
+    innerSize,
+    innerRadius,
+    emeraldRgba,
+  );
   fillRoundedRect(
     pixels,
     width,
@@ -303,7 +340,7 @@ function compositeCenterBadgeOnPng(pngBuffer: Buffer, lightColorHex: string): Bu
     innerSize - strokeWidth * 2,
     innerSize - strokeWidth * 2,
     Math.max(2, innerRadius - strokeWidth),
-    obsidianRgba
+    obsidianRgba,
   );
 
   const codeScale = Math.max(2, Math.round(size * 0.0055));
@@ -316,7 +353,7 @@ function compositeCenterBadgeOnPng(pngBuffer: Buffer, lightColorHex: string): Bu
     height * 0.474,
     codeScale,
     Math.max(2, Math.round(codeScale * 1.1)),
-    emeraldRgba
+    emeraldRgba,
   );
   drawBitmapText(
     pixels,
@@ -326,7 +363,7 @@ function compositeCenterBadgeOnPng(pngBuffer: Buffer, lightColorHex: string): Bu
     height * 0.542,
     caScale,
     Math.max(2, Math.round(caScale * 1.8)),
-    whiteRgba
+    whiteRgba,
   );
 
   return encodeRgbaPng(width, height, pixels);
@@ -336,7 +373,10 @@ function compositeCenterBadgeOnPng(pngBuffer: Buffer, lightColorHex: string): Bu
  * Always builds the canonical short URL (`https://links.cristianarando.dev/[slug]`),
  * ignoring any technical `.vercel.app` host.
  */
-export function buildCanonicalQrTargetUrl(slug: string, canonicalBaseUrl?: string): string {
+export function buildCanonicalQrTargetUrl(
+  slug: string,
+  canonicalBaseUrl?: string,
+): string {
   const base = (
     canonicalBaseUrl ||
     process.env.NEXT_PUBLIC_CANONICAL_URL ||
@@ -350,8 +390,13 @@ export function buildCanonicalQrTargetUrl(slug: string, canonicalBaseUrl?: strin
  * Generates a pure vector SVG QR code with ECC level `H` (30%)
  * and an optional centered `CA` brand badge.
  */
-export async function generateQrCodeSvg(options: QrGenerationOptions): Promise<string> {
-  const targetUrl = buildCanonicalQrTargetUrl(options.slug, options.canonicalBaseUrl);
+export async function generateQrCodeSvg(
+  options: QrGenerationOptions,
+): Promise<string> {
+  const targetUrl = buildCanonicalQrTargetUrl(
+    options.slug,
+    options.canonicalBaseUrl,
+  );
   const darkColor = options.darkColor || "#09090b";
   const lightColor = options.lightColor || "#ffffff";
   const includeCenterBadge = options.includeCenterBadge ?? true;
@@ -386,8 +431,13 @@ export async function generateQrCodeSvg(options: QrGenerationOptions): Promise<s
  * Generates the QR code as a PNG Data URL (`data:image/png;base64,...`) at `1024x1024px` by default,
  * embedding the centered `CA` badge when `includeCenterBadge !== false`.
  */
-export async function generateQrCodePngDataUrl(options: QrGenerationOptions): Promise<string> {
-  const targetUrl = buildCanonicalQrTargetUrl(options.slug, options.canonicalBaseUrl);
+export async function generateQrCodePngDataUrl(
+  options: QrGenerationOptions,
+): Promise<string> {
+  const targetUrl = buildCanonicalQrTargetUrl(
+    options.slug,
+    options.canonicalBaseUrl,
+  );
   const darkColor = options.darkColor || "#09090b";
   const lightColor = options.lightColor || "#ffffff";
   const includeCenterBadge = options.includeCenterBadge ?? true;
@@ -410,8 +460,13 @@ export async function generateQrCodePngDataUrl(options: QrGenerationOptions): Pr
   return `data:image/png;base64,${finalPng.toString("base64")}`;
 }
 
-export async function generateQrBundle(options: QrGenerationOptions): Promise<QrBundle> {
-  const targetUrl = buildCanonicalQrTargetUrl(options.slug, options.canonicalBaseUrl);
+export async function generateQrBundle(
+  options: QrGenerationOptions,
+): Promise<QrBundle> {
+  const targetUrl = buildCanonicalQrTargetUrl(
+    options.slug,
+    options.canonicalBaseUrl,
+  );
   const [svg, pngDataUrl] = await Promise.all([
     generateQrCodeSvg(options),
     generateQrCodePngDataUrl(options),

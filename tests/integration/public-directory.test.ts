@@ -5,7 +5,10 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { handleListPublicLinksGet } from "../../src/app/api/v1/links/public/route";
-import type { PaginatedResult, PublicLinkDTO } from "../../src/lib/types/link-dto";
+import type {
+  PaginatedResult,
+  PublicLinkDTO,
+} from "../../src/lib/types/link-dto";
 import * as schema from "../../src/server/db/schema";
 import { createLinkService } from "../../src/server/services/link.service";
 
@@ -68,8 +71,10 @@ describe("T-021: Directorio Público (/links) y Aislamiento de Enlaces Privados/
       });
 
       const res = await handleListPublicLinksGet(
-        new Request("https://cristianarando.dev/api/v1/links/public?category=project"),
-        linkService
+        new Request(
+          "https://cristianarando.dev/api/v1/links/public?category=project",
+        ),
+        linkService,
       );
 
       expect(res.status).toBe(200);

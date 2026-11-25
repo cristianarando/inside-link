@@ -16,7 +16,8 @@ export default async function AdminDashboardPage() {
           Links &amp; Micro-Landings Manager
         </h1>
         <p className="text-xs text-zinc-400">
-          Manage direct redirects, project HUB pages, and public directory visibility on{" "}
+          Manage direct redirects, project HUB pages, and public directory
+          visibility on{" "}
           <span className="font-mono text-zinc-300">{canonicalHost}</span>.
         </p>
       </div>

@@ -36,7 +36,7 @@ export class MetadataServiceError extends Error {
 
 export type LookupAddressFn = (
   hostname: string,
-  options: { all: true }
+  options: { all: true },
 ) => Promise<Array<{ address: string; family: number }>>;
 
 const MAX_HTML_BYTES = 64 * 1024;
@@ -44,7 +44,12 @@ const FETCH_TIMEOUT_MS = 4000;
 const MAX_REDIRECT_HOPS = 2;
 
 const BLOCKED_HOSTNAMES = new Set(["localhost", "localhost.localdomain"]);
-const BLOCKED_HOSTNAME_SUFFIXES = [".localhost", ".local", ".internal", ".localdomain"];
+const BLOCKED_HOSTNAME_SUFFIXES = [
+  ".localhost",
+  ".local",
+  ".internal",
+  ".localdomain",
+];
 
 function isPublicIpv4Octets(a: number, b: number, c: number): boolean {
   if (a === 0) return false; // 0.0.0.0/8 ("this" network)
@@ -74,7 +79,10 @@ function parseIpv6Groups(rawIp: string): number[] | null {
     const v4Part = working.slice(lastColon + 1);
     if (!net.isIPv4(v4Part)) return null;
     const octets = v4Part.split(".").map(Number);
-    embeddedV4Groups = [((octets[0]! << 8) | octets[1]!) >>> 0, ((octets[2]! << 8) | octets[3]!) >>> 0];
+    embeddedV4Groups = [
+      ((octets[0]! << 8) | octets[1]!) >>> 0,
+      ((octets[2]! << 8) | octets[3]!) >>> 0,
+    ];
     working = working.slice(0, lastColon);
   }
 
@@ -86,7 +94,8 @@ function parseIpv6Groups(rawIp: string): number[] | null {
     part.length === 0 ? [] : part.split(":").map((hex) => parseInt(hex, 16));
 
   const left = parseSide(doubleColonParts[0] ?? "");
-  const right = doubleColonParts.length === 2 ? parseSide(doubleColonParts[1] ?? "") : [];
+  const right =
+    doubleColonParts.length === 2 ? parseSide(doubleColonParts[1] ?? "") : [];
 
   let groups: number[];
   if (doubleColonParts.length === 2) {
@@ -127,7 +136,8 @@ export function isPublicIpAddress(ip: string): boolean {
   const groups = parseIpv6Groups(clean);
   if (!groups) return false;
 
-  const isAllZeroPrefix = (count: number) => groups.slice(0, count).every((g) => g === 0);
+  const isAllZeroPrefix = (count: number) =>
+    groups.slice(0, count).every((g) => g === 0);
 
   // Unspecified (::) and Loopback (::1)
   if (isAllZeroPrefix(7) && (groups[7] === 0 || groups[7] === 1)) {
@@ -156,7 +166,9 @@ export function isPublicIpAddress(ip: string): boolean {
 
 function normalizeHostname(rawHostname: string): string {
   const lower = rawHostname.trim().toLowerCase().replace(/\.+$/, "");
-  return lower.startsWith("[") && lower.endsWith("]") ? lower.slice(1, -1) : lower;
+  return lower.startsWith("[") && lower.endsWith("]")
+    ? lower.slice(1, -1)
+    : lower;
 }
 
 /**
@@ -165,14 +177,15 @@ function normalizeHostname(rawHostname: string): string {
  */
 export async function assertSafeMetadataUrl(
   rawUrl: string,
-  lookupFn: LookupAddressFn = dnsLookup
+  lookupFn: LookupAddressFn = dnsLookup,
 ): Promise<URL> {
   const parsedSchema = SafeUrlSchema.safeParse(rawUrl);
   if (!parsedSchema.success) {
     throw new MetadataServiceError(
       "VALIDATION_ERROR",
-      parsedSchema.error.issues[0]?.message || "Must be a valid http:// or https:// URL",
-      400
+      parsedSchema.error.issues[0]?.message ||
+        "Must be a valid http:// or https:// URL",
+      400,
     );
   }
 
@@ -181,7 +194,7 @@ export async function assertSafeMetadataUrl(
     throw new MetadataServiceError(
       "VALIDATION_ERROR",
       "URLs with embedded credentials are not allowed",
-      400
+      400,
     );
   }
 
@@ -194,7 +207,7 @@ export async function assertSafeMetadataUrl(
     throw new MetadataServiceError(
       "SSRF_BLOCKED",
       "Target hostname is restricted and cannot be previewed",
-      400
+      400,
     );
   }
 
@@ -203,7 +216,7 @@ export async function assertSafeMetadataUrl(
       throw new MetadataServiceError(
         "SSRF_BLOCKED",
         "Private, loopback, and link-local IP addresses are not allowed",
-        400
+        400,
       );
     }
     return parsedUrl;
@@ -216,7 +229,7 @@ export async function assertSafeMetadataUrl(
     throw new MetadataServiceError(
       "FETCH_FAILED",
       "Unable to resolve target hostname",
-      422
+      422,
     );
   }
 
@@ -224,7 +237,7 @@ export async function assertSafeMetadataUrl(
     throw new MetadataServiceError(
       "FETCH_FAILED",
       "Target hostname resolved to no addresses",
-      422
+      422,
     );
   }
 
@@ -233,7 +246,7 @@ export async function assertSafeMetadataUrl(
       throw new MetadataServiceError(
         "SSRF_BLOCKED",
         "Target hostname resolves to a non-public IP address",
-        400
+        400,
       );
     }
   }
@@ -254,25 +267,38 @@ function decodeHtmlEntities(input: string): string {
   return input
     .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => {
       const code = Number.parseInt(hex, 16);
-      return Number.isFinite(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : _;
+      return Number.isFinite(code) && code > 0 && code <= 0x10ffff
+        ? String.fromCodePoint(code)
+        : _;
     })
     .replace(/&#([0-9]+);/g, (_, dec: string) => {
       const code = Number.parseInt(dec, 10);
-      return Number.isFinite(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : _;
+      return Number.isFinite(code) && code > 0 && code <= 0x10ffff
+        ? String.fromCodePoint(code)
+        : _;
     })
-    .replace(/&([a-z]+);/gi, (full, name: string) => named[name.toLowerCase()] ?? full);
+    .replace(
+      /&([a-z]+);/gi,
+      (full, name: string) => named[name.toLowerCase()] ?? full,
+    );
 }
 
-function cleanText(raw: string | null | undefined, maxLength: number): string | null {
+function cleanText(
+  raw: string | null | undefined,
+  maxLength: number,
+): string | null {
   if (!raw) return null;
   const decoded = decodeHtmlEntities(raw).replace(/\s+/g, " ").trim();
   if (!decoded) return null;
-  return decoded.length > maxLength ? decoded.slice(0, maxLength).trimEnd() : decoded;
+  return decoded.length > maxLength
+    ? decoded.slice(0, maxLength).trimEnd()
+    : decoded;
 }
 
 function extractMetaContent(html: string, keys: string[]): string | null {
   const metaTagRegex = /<meta\b[^>]*>/gi;
-  const attrRegex = /([a-zA-Z0-9:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/g;
+  const attrRegex =
+    /([a-zA-Z0-9:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/g;
 
   let match: RegExpExecArray | null;
   while ((match = metaTagRegex.exec(html)) !== null) {
@@ -296,7 +322,7 @@ function extractMetaContent(html: string, keys: string[]): string | null {
 
 function extractHtmlTitle(html: string): string | null {
   const match = /<title\b[^>]*>([\s\S]*?)<\/title>/i.exec(html);
-  return match ? match[1] ?? null : null;
+  return match ? (match[1] ?? null) : null;
 }
 
 export function suggestIconForUrl(url: URL): SuggestedLinkIcon {
@@ -304,7 +330,8 @@ export function suggestIconForUrl(url: URL): SuggestedLinkIcon {
   const path = url.pathname.toLowerCase();
 
   if (host === "github.com" || host.endsWith(".github.com")) return "github";
-  if (host === "linkedin.com" || host.endsWith(".linkedin.com")) return "linkedin";
+  if (host === "linkedin.com" || host.endsWith(".linkedin.com"))
+    return "linkedin";
   if (
     host === "twitter.com" ||
     host.endsWith(".twitter.com") ||
@@ -313,7 +340,11 @@ export function suggestIconForUrl(url: URL): SuggestedLinkIcon {
   ) {
     return "twitter";
   }
-  if (host === "youtube.com" || host.endsWith(".youtube.com") || host === "youtu.be") {
+  if (
+    host === "youtube.com" ||
+    host.endsWith(".youtube.com") ||
+    host === "youtu.be"
+  ) {
     return "youtube";
   }
   if (
@@ -376,7 +407,7 @@ export interface PreviewMetadataDeps {
 
 export async function previewUrlMetadata(
   rawUrl: string,
-  deps: PreviewMetadataDeps = {}
+  deps: PreviewMetadataDeps = {},
 ): Promise<MetadataPreviewResult> {
   const lookupFn = deps.lookup ?? dnsLookup;
   const fetchFn = deps.fetchFn ?? fetch;
@@ -399,8 +430,10 @@ export async function previewUrlMetadata(
       const isTimeout = err instanceof Error && err.name === "TimeoutError";
       throw new MetadataServiceError(
         "FETCH_FAILED",
-        isTimeout ? "Timed out fetching target URL" : "Failed to fetch target URL",
-        502
+        isTimeout
+          ? "Timed out fetching target URL"
+          : "Failed to fetch target URL",
+        502,
       );
     }
 
@@ -409,17 +442,29 @@ export async function previewUrlMetadata(
       await response.body?.cancel().catch(() => undefined);
 
       if (!location) {
-        throw new MetadataServiceError("FETCH_FAILED", "Redirect missing Location header", 502);
+        throw new MetadataServiceError(
+          "FETCH_FAILED",
+          "Redirect missing Location header",
+          502,
+        );
       }
       if (hop === MAX_REDIRECT_HOPS) {
-        throw new MetadataServiceError("FETCH_FAILED", "Too many redirects", 502);
+        throw new MetadataServiceError(
+          "FETCH_FAILED",
+          "Too many redirects",
+          502,
+        );
       }
 
       let nextUrlString: string;
       try {
         nextUrlString = new URL(location, currentUrl).toString();
       } catch {
-        throw new MetadataServiceError("FETCH_FAILED", "Invalid redirect URL", 502);
+        throw new MetadataServiceError(
+          "FETCH_FAILED",
+          "Invalid redirect URL",
+          502,
+        );
       }
 
       currentUrl = await assertSafeMetadataUrl(nextUrlString, lookupFn);
@@ -434,7 +479,7 @@ export async function previewUrlMetadata(
     throw new MetadataServiceError(
       "FETCH_FAILED",
       `Target URL responded with status ${response?.status ?? 502}`,
-      502
+      502,
     );
   }
 
@@ -455,7 +500,9 @@ export async function previewUrlMetadata(
   }
 
   const html = await readLimitedHtml(response);
-  const rawTitle = extractMetaContent(html, ["og:title", "twitter:title"]) ?? extractHtmlTitle(html);
+  const rawTitle =
+    extractMetaContent(html, ["og:title", "twitter:title"]) ??
+    extractHtmlTitle(html);
   const rawDescription = extractMetaContent(html, [
     "og:description",
     "description",

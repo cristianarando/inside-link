@@ -8,12 +8,15 @@ import {
 
 describe("T-018: Generador de Códigos QR Personalizados (SVG y PNG)", () => {
   it("apunta siempre al dominio canónico https://links.cristianarando.dev/[slug]", () => {
-    expect(buildCanonicalQrTargetUrl("github", "https://links.cristianarando.dev/")).toBe(
-      "https://links.cristianarando.dev/github"
-    );
-    expect(buildCanonicalQrTargetUrl("/Proyecto-Demo", "https://links.cristianarando.dev")).toBe(
-      "https://links.cristianarando.dev/proyecto-demo"
-    );
+    expect(
+      buildCanonicalQrTargetUrl("github", "https://links.cristianarando.dev/"),
+    ).toBe("https://links.cristianarando.dev/github");
+    expect(
+      buildCanonicalQrTargetUrl(
+        "/Proyecto-Demo",
+        "https://links.cristianarando.dev",
+      ),
+    ).toBe("https://links.cristianarando.dev/proyecto-demo");
   });
 
   it("genera SVG vectorial válido con insignia CA opcional y PNG base64", async () => {

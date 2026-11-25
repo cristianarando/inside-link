@@ -8,12 +8,7 @@ import {
   Sparkles,
   Wand2,
 } from "lucide-react";
-import {
-  Button,
-  DialogModal,
-  Input,
-  Switch,
-} from "@/components/ui/primitives";
+import { Button, DialogModal, Input, Switch } from "@/components/ui/primitives";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { getCanonicalHost } from "@/lib/env";
 import type {
@@ -131,7 +126,7 @@ export function LinkFormModal({
                 ? `hub-${idx + 1}-${Date.now().toString(36)}`
                 : item.id,
             }))
-          : DEFAULT_HUB_ITEMS
+          : DEFAULT_HUB_ITEMS,
       );
       setCategory(sourceLink.category);
       setTagsText(sourceLink.tags.join(", "));
@@ -140,13 +135,13 @@ export function LinkFormModal({
       setIsPublic(sourceLink.isPublic);
       setIsPinned(isDuplicate ? false : sourceLink.isPinned);
       setExpiresAtInput(
-        sourceLink.expiresAt ? sourceLink.expiresAt.slice(0, 16) : ""
+        sourceLink.expiresAt ? sourceLink.expiresAt.slice(0, 16) : "",
       );
       setMaxClicksInput(
-        sourceLink.maxClicks !== null ? String(sourceLink.maxClicks) : ""
+        sourceLink.maxClicks !== null ? String(sourceLink.maxClicks) : "",
       );
       setOgMode(
-        sourceLink.ogMode ?? (sourceLink.ogImageUrl ? "custom" : "auto")
+        sourceLink.ogMode ?? (sourceLink.ogImageUrl ? "custom" : "auto"),
       );
       setOgImageUrl(sourceLink.ogImageUrl ?? "");
     } else {
@@ -361,7 +356,7 @@ export function LinkFormModal({
       if (!res.ok) {
         setSubmitError(
           body?.error?.message ||
-            "Could not save the link. Please check the fields."
+            "Could not save the link. Please check the fields.",
         );
         setIsSubmitting(false);
         return;
@@ -466,7 +461,9 @@ export function LinkFormModal({
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-zinc-300">Category</label>
+            <label className="text-xs font-medium text-zinc-300">
+              Category
+            </label>
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value as LinkCategory)}
@@ -646,7 +643,7 @@ export function LinkFormModal({
                 setPreviewUrl("");
                 try {
                   const hasPin = Boolean(
-                    pinInput || (initialLink?.hasPin && !clearExistingPin)
+                    pinInput || (initialLink?.hasPin && !clearExistingPin),
                   );
                   const response = await fetch("/api/v1/og/preview", {
                     method: "POST",
@@ -676,7 +673,7 @@ export function LinkFormModal({
                       reader.onload = () => resolve(String(reader.result));
                       reader.onerror = () => reject(reader.error);
                       reader.readAsDataURL(png);
-                    }
+                    },
                   );
                   setPreviewUrl(dataUrl);
                 } catch {

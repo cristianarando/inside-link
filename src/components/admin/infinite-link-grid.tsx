@@ -41,18 +41,17 @@ export function InfiniteLinkGrid({
   const canonicalHost = getCanonicalHost();
   const [items, setItems] = useState<LinkDTO[]>(initialPage.items);
   const [nextCursor, setNextCursor] = useState<string | null>(
-    initialPage.nextCursor
+    initialPage.nextCursor,
   );
   const [hasNextPage, setHasNextPage] = useState<boolean>(
-    initialPage.hasNextPage
+    initialPage.hasNextPage,
   );
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<
     LinkCategory | "all"
   >("all");
-  const [selectedStatus, setSelectedStatus] =
-    useState<LinkStatusFilter>("all");
+  const [selectedStatus, setSelectedStatus] = useState<LinkStatusFilter>("all");
 
   const [isInitialLoading, setIsInitialLoading] = useState(false);
   const [isFetchingNextPage, setIsFetchingNextPage] = useState(false);
@@ -118,7 +117,7 @@ export function InfiniteLinkGrid({
       if (selectedStatus !== "all") params.set("status", selectedStatus);
       return `/api/v1/links?${params.toString()}`;
     },
-    [debouncedQuery, selectedCategory, selectedStatus]
+    [debouncedQuery, selectedCategory, selectedStatus],
   );
 
   useEffect(() => {
@@ -187,12 +186,14 @@ export function InfiniteLinkGrid({
 
   const handleToggleFlags = async (
     link: LinkDTO,
-    patch: { isActive?: boolean; isPinned?: boolean }
+    patch: { isActive?: boolean; isPinned?: boolean },
   ) => {
     setItems((prev) =>
       sortLinksByKeyset(
-        prev.map((item) => (item.id === link.id ? { ...item, ...patch } : item))
-      )
+        prev.map((item) =>
+          item.id === link.id ? { ...item, ...patch } : item,
+        ),
+      ),
     );
 
     try {
@@ -205,28 +206,28 @@ export function InfiniteLinkGrid({
         const updated = (await res.json()) as LinkDTO;
         setItems((prev) =>
           sortLinksByKeyset(
-            prev.map((item) => (item.id === updated.id ? updated : item))
-          )
+            prev.map((item) => (item.id === updated.id ? updated : item)),
+          ),
         );
         if (patch.isPinned !== undefined) {
           showToast(
             updated.isPinned
               ? `/${updated.slug} pinned to top`
-              : `/${updated.slug} unpinned`
+              : `/${updated.slug} unpinned`,
           );
         } else if (patch.isActive !== undefined) {
           showToast(
             updated.isActive
               ? `/${updated.slug} activated`
-              : `/${updated.slug} paused`
+              : `/${updated.slug} paused`,
           );
         }
       }
     } catch {
       setItems((prev) =>
         sortLinksByKeyset(
-          prev.map((item) => (item.id === link.id ? link : item))
-        )
+          prev.map((item) => (item.id === link.id ? link : item)),
+        ),
       );
     }
   };
@@ -261,8 +262,8 @@ export function InfiniteLinkGrid({
     if (isEdit) {
       setItems((prev) =>
         sortLinksByKeyset(
-          prev.map((item) => (item.id === saved.id ? saved : item))
-        )
+          prev.map((item) => (item.id === saved.id ? saved : item)),
+        ),
       );
       showToast(`Changes saved to /${saved.slug}`);
     } else {
@@ -362,11 +363,7 @@ export function InfiniteLinkGrid({
           </div>
 
           {hasNextPage && (
-            <div
-              ref={sentinelRef}
-              aria-hidden="true"
-              className="h-6 w-full"
-            />
+            <div ref={sentinelRef} aria-hidden="true" className="h-6 w-full" />
           )}
         </>
       )}

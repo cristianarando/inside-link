@@ -14,7 +14,7 @@ function parseRange(raw: string | null): AnalyticsRange {
 export async function handleGetLinkAnalytics(
   request: Request,
   id: string,
-  service: AnalyticsService = analyticsService
+  service: AnalyticsService = analyticsService,
 ): Promise<NextResponse> {
   const url = new URL(request.url);
   const range = parseRange(url.searchParams.get("range"));
@@ -27,7 +27,7 @@ export async function handleGetLinkAnalytics(
   if (!summary) {
     return NextResponse.json(
       { error: { code: "NOT_FOUND", message: "Link not found" } },
-      { status: 404 }
+      { status: 404 },
     );
   }
 
@@ -36,7 +36,7 @@ export async function handleGetLinkAnalytics(
 
 export async function GET(
   request: Request,
-  context: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   const guard = await assertAdminApiSession(request.headers);
   if (!guard.authorized) return guard.response;

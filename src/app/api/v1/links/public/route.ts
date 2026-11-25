@@ -8,7 +8,7 @@ import {
 
 export async function handleListPublicLinksGet(
   request: Request,
-  service: LinkService = linkService
+  service: LinkService = linkService,
 ): Promise<NextResponse> {
   try {
     const url = new URL(request.url);
@@ -20,7 +20,8 @@ export async function handleListPublicLinksGet(
     });
     return NextResponse.json(page, {
       headers: {
-        "Cache-Control": "public, max-age=15, s-maxage=60, stale-while-revalidate=120",
+        "Cache-Control":
+          "public, max-age=15, s-maxage=60, stale-while-revalidate=120",
       },
     });
   } catch (err) {
@@ -33,12 +34,12 @@ export async function handleListPublicLinksGet(
             details: err.details,
           },
         },
-        { status: httpStatusForLinkError(err.code) }
+        { status: httpStatusForLinkError(err.code) },
       );
     }
     return NextResponse.json(
       { error: { code: "INTERNAL_ERROR", message: "Internal server error" } },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

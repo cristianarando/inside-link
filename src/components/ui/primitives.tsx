@@ -42,7 +42,7 @@ export function Button({
         "inline-flex items-center justify-center font-medium transition active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50",
         variantClasses[variant],
         sizeClasses[size],
-        className
+        className,
       )}
       {...props}
     />
@@ -57,7 +57,7 @@ export function Input({
     <input
       className={cn(
         "w-full rounded-xl border border-zinc-800 bg-[#111114]/90 px-3.5 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 transition focus:border-emerald-500/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 disabled:opacity-50",
-        className
+        className,
       )}
       {...props}
     />
@@ -103,7 +103,7 @@ export function Badge({
       className={cn(
         "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium",
         styles[variant],
-        className
+        className,
       )}
     >
       {children}
@@ -134,13 +134,13 @@ export function Switch({
         "relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 disabled:opacity-50",
         checked
           ? "border-emerald-500/50 bg-emerald-500"
-          : "border-zinc-700 bg-zinc-800"
+          : "border-zinc-700 bg-zinc-800",
       )}
     >
       <span
         className={cn(
           "pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform",
-          checked ? "translate-x-4" : "translate-x-0.5"
+          checked ? "translate-x-4" : "translate-x-0.5",
         )}
       />
     </button>
@@ -152,7 +152,7 @@ export function Skeleton({ className }: { className?: string }) {
     <div
       className={cn(
         "animate-pulse rounded-xl border border-zinc-800/50 bg-[#111114]/80",
-        className
+        className,
       )}
     />
   );
@@ -207,7 +207,7 @@ export function DialogModal({
       <div
         className={cn(
           "relative max-h-[90vh] w-full overflow-y-auto rounded-2xl border border-zinc-800/90 bg-[#0d0d10]/95 p-6 text-zinc-100 shadow-[0_24px_64px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl transition-all duration-150",
-          maxWidthClass
+          maxWidthClass,
         )}
       >
         <div className="flex items-start justify-between gap-4 border-b border-zinc-800/80 pb-4">

@@ -42,7 +42,11 @@ export class LinkServiceError extends Error {
   readonly code: LinkServiceErrorCode;
   readonly details?: Record<string, string[]>;
 
-  constructor(code: LinkServiceErrorCode, message: string, details?: Record<string, string[]>) {
+  constructor(
+    code: LinkServiceErrorCode,
+    message: string,
+    details?: Record<string, string[]>,
+  ) {
     super(message);
     this.name = "LinkServiceError";
     this.code = code;
@@ -76,7 +80,13 @@ const MAX_SEARCH_LENGTH = 100;
 const RANDOM_SLUG_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
 const RANDOM_SLUG_MAX_ATTEMPTS = 10;
 
-const LinkStatusFilterSchema = z.enum(["all", "active", "inactive", "expired", "pinned"]);
+const LinkStatusFilterSchema = z.enum([
+  "all",
+  "active",
+  "inactive",
+  "expired",
+  "pinned",
+]);
 const TagsSchema = z.array(z.string());
 const HubLinksSchema = z.array(HubLinkItemSchema);
 
@@ -84,7 +94,9 @@ const HubLinksSchema = z.array(HubLinkItemSchema);
 const nextId = monotonicFactory();
 
 function canonicalBaseUrl(): string {
-  return (process.env.NEXT_PUBLIC_CANONICAL_URL || "https://links.cristianarando.dev").replace(/\/+$/, "");
+  return (
+    process.env.NEXT_PUBLIC_CANONICAL_URL || "https://links.cristianarando.dev"
+  ).replace(/\/+$/, "");
 }
 
 function zodDetails(error: z.ZodError): Record<string, string[]> {
@@ -99,12 +111,18 @@ function zodDetails(error: z.ZodError): Record<string, string[]> {
 
 function asRecord(input: unknown): Record<string, unknown> {
   if (typeof input !== "object" || input === null || Array.isArray(input)) {
-    throw new LinkServiceError("VALIDATION_ERROR", "Request body must be a JSON object");
+    throw new LinkServiceError(
+      "VALIDATION_ERROR",
+      "Request body must be a JSON object",
+    );
   }
   return input as Record<string, unknown>;
 }
 
-function safeJsonArray<T>(raw: string | null, parser: z.ZodType<T[], z.ZodTypeDef, unknown>): T[] | null {
+function safeJsonArray<T>(
+  raw: string | null,
+  parser: z.ZodType<T[], z.ZodTypeDef, unknown>,
+): T[] | null {
   if (!raw) return null;
   try {
     const result = parser.safeParse(JSON.parse(raw));
@@ -122,7 +140,10 @@ function toCategory(value: string): LinkCategory {
 function isUniqueSlugViolation(err: unknown): boolean {
   let current: unknown = err;
   for (let depth = 0; current && depth < 5; depth++) {
-    if (current instanceof Error && /UNIQUE constraint failed: links\.slug/i.test(current.message)) {
+    if (
+      current instanceof Error &&
+      /UNIQUE constraint failed: links\.slug/i.test(current.message)
+    ) {
       return true;
     }
     current = (current as { cause?: unknown }).cause;
@@ -130,7 +151,10 @@ function isUniqueSlugViolation(err: unknown): boolean {
   return false;
 }
 
-export function isLinkExpired(row: Pick<Link, "expiresAt" | "maxClicks" | "clicksCount">, now: Date = new Date()): boolean {
+export function isLinkExpired(
+  row: Pick<Link, "expiresAt" | "maxClicks" | "clicksCount">,
+  now: Date = new Date(),
+): boolean {
   if (row.expiresAt && row.expiresAt.getTime() <= now.getTime()) return true;
   if (row.maxClicks !== null && row.clicksCount >= row.maxClicks) return true;
   return false;
@@ -226,9 +250,13 @@ export interface LinkFlagsPatch {
 
 function validateOgMode(mode: Link["ogMode"], imageUrl: string | null): void {
   if (mode === "custom" && !imageUrl) {
-    throw new LinkServiceError("VALIDATION_ERROR", "Custom OG mode requires an image URL", {
-      ogImageUrl: ["Enter an image URL for custom mode."],
-    });
+    throw new LinkServiceError(
+      "VALIDATION_ERROR",
+      "Custom OG mode requires an image URL",
+      {
+        ogImageUrl: ["Enter an image URL for custom mode."],
+      },
+    );
   }
 }
 
@@ -239,7 +267,11 @@ export function createLinkService(db: AppDatabase) {
   }
 
   async function findRowBySlug(slug: string): Promise<Link | null> {
-    const rows = await db.select().from(links).where(eq(links.slug, slug)).limit(1);
+    const rows = await db
+      .select()
+      .from(links)
+      .where(eq(links.slug, slug))
+      .limit(1);
     return rows[0] ?? null;
   }
 
@@ -250,22 +282,32 @@ export function createLinkService(db: AppDatabase) {
       throw new LinkServiceError(
         result.reason === "RESERVED" ? "SLUG_RESERVED" : "VALIDATION_ERROR",
         result.message,
-        { slug: [result.message] }
+        { slug: [result.message] },
       );
     }
     return result.normalized;
   }
 
-  async function assertSlugFree(slug: string, excludeId?: string): Promise<void> {
+  async function assertSlugFree(
+    slug: string,
+    excludeId?: string,
+  ): Promise<void> {
     const existing = await findRowBySlug(slug);
     if (existing && existing.id !== excludeId) {
-      throw new LinkServiceError("SLUG_ALREADY_EXISTS", `Slug "${slug}" is already in use`, {
-        slug: [`Slug "${slug}" is already in use`],
-      });
+      throw new LinkServiceError(
+        "SLUG_ALREADY_EXISTS",
+        `Slug "${slug}" is already in use`,
+        {
+          slug: [`Slug "${slug}" is already in use`],
+        },
+      );
     }
   }
 
-  async function checkSlugAvailability(rawSlug: string, excludeId?: string): Promise<SlugAvailability> {
+  async function checkSlugAvailability(
+    rawSlug: string,
+    excludeId?: string,
+  ): Promise<SlugAvailability> {
     const result = classifySlug(rawSlug);
     if (!result.ok) {
       return {
@@ -294,14 +336,16 @@ export function createLinkService(db: AppDatabase) {
     for (let attempt = 0; attempt < RANDOM_SLUG_MAX_ATTEMPTS; attempt++) {
       let candidate = "";
       for (let i = 0; i < size; i++) {
-        candidate += RANDOM_SLUG_ALPHABET.charAt(randomInt(RANDOM_SLUG_ALPHABET.length));
+        candidate += RANDOM_SLUG_ALPHABET.charAt(
+          randomInt(RANDOM_SLUG_ALPHABET.length),
+        );
       }
       if (!classifySlug(candidate).ok) continue;
       if (!(await findRowBySlug(candidate))) return candidate;
     }
     throw new LinkServiceError(
       "SLUG_GENERATION_FAILED",
-      "Failed to generate a unique random slug after multiple attempts"
+      "Failed to generate a unique random slug after multiple attempts",
     );
   }
 
@@ -322,10 +366,16 @@ export function createLinkService(db: AppDatabase) {
 
     const parsed = CreateLinkSchema.safeParse({
       ...input,
-      slug: slug ?? (input.slug == null || input.slug === "" ? undefined : input.slug),
+      slug:
+        slug ??
+        (input.slug == null || input.slug === "" ? undefined : input.slug),
     });
     if (!parsed.success) {
-      throw new LinkServiceError("VALIDATION_ERROR", "Invalid link data", zodDetails(parsed.error));
+      throw new LinkServiceError(
+        "VALIDATION_ERROR",
+        "Invalid link data",
+        zodDetails(parsed.error),
+      );
     }
     const data = parsed.data;
     const ogMode = data.ogMode ?? (data.ogImageUrl ? "custom" : "auto");
@@ -338,10 +388,14 @@ export function createLinkService(db: AppDatabase) {
       id,
       slug: finalSlug,
       type: data.type,
-      destinationUrl: data.type === "DIRECT" ? (data.destinationUrl ?? null) : null,
+      destinationUrl:
+        data.type === "DIRECT" ? (data.destinationUrl ?? null) : null,
       redirectStatus: data.redirectStatus,
       forwardQueryParams: data.forwardQueryParams,
-      hubLinksJson: data.type === "HUB" && data.hubLinks ? JSON.stringify(data.hubLinks) : null,
+      hubLinksJson:
+        data.type === "HUB" && data.hubLinks
+          ? JSON.stringify(data.hubLinks)
+          : null,
       title: data.title.trim(),
       description: data.description?.trim() || null,
       ogImageUrl: data.ogImageUrl ?? null,
@@ -365,15 +419,20 @@ export function createLinkService(db: AppDatabase) {
     } catch (err) {
       // Carrera entre la verificación y el INSERT: el índice UNIQUE es la barrera final.
       if (isUniqueSlugViolation(err)) {
-        throw new LinkServiceError("SLUG_ALREADY_EXISTS", `Slug "${finalSlug}" is already in use`, {
-          slug: [`Slug "${finalSlug}" is already in use`],
-        });
+        throw new LinkServiceError(
+          "SLUG_ALREADY_EXISTS",
+          `Slug "${finalSlug}" is already in use`,
+          {
+            slug: [`Slug "${finalSlug}" is already in use`],
+          },
+        );
       }
       throw err;
     }
 
     const created = await findRowById(id);
-    if (!created) throw new Error("Invariant violated: newly created link does not exist");
+    if (!created)
+      throw new Error("Invariant violated: newly created link does not exist");
     return toLinkDTO(created);
   }
 
@@ -395,47 +454,73 @@ export function createLinkService(db: AppDatabase) {
     }
 
     // Slug was already validated above; validate remaining fields as a partial patch.
-    const parsed = BaseLinkSchema.partial().safeParse({ ...patch, slug: undefined });
+    const parsed = BaseLinkSchema.partial().safeParse({
+      ...patch,
+      slug: undefined,
+    });
     if (!parsed.success) {
-      throw new LinkServiceError("VALIDATION_ERROR", "Invalid link data", zodDetails(parsed.error));
+      throw new LinkServiceError(
+        "VALIDATION_ERROR",
+        "Invalid link data",
+        zodDetails(parsed.error),
+      );
     }
     const data = parsed.data;
 
     // Polymorphic invariant evaluated against the FINAL state (existing + patch).
     const finalType = data.type ?? existing.type;
     const finalDestination =
-      data.destinationUrl !== undefined ? data.destinationUrl : existing.destinationUrl;
+      data.destinationUrl !== undefined
+        ? data.destinationUrl
+        : existing.destinationUrl;
     const finalHubLinks =
-      data.hubLinks !== undefined ? data.hubLinks : safeJsonArray(existing.hubLinksJson, HubLinksSchema);
+      data.hubLinks !== undefined
+        ? data.hubLinks
+        : safeJsonArray(existing.hubLinksJson, HubLinksSchema);
 
     if (finalType === "DIRECT" && !finalDestination) {
-      throw new LinkServiceError("VALIDATION_ERROR", "Destination URL is required for DIRECT links", {
-        destinationUrl: ["Destination URL is required for DIRECT links"],
-      });
+      throw new LinkServiceError(
+        "VALIDATION_ERROR",
+        "Destination URL is required for DIRECT links",
+        {
+          destinationUrl: ["Destination URL is required for DIRECT links"],
+        },
+      );
     }
     if (finalType === "HUB" && (!finalHubLinks || finalHubLinks.length === 0)) {
-      throw new LinkServiceError("VALIDATION_ERROR", "HUB mode requires at least one sub-link", {
-        hubLinks: ["HUB mode requires at least one sub-link"],
-      });
+      throw new LinkServiceError(
+        "VALIDATION_ERROR",
+        "HUB mode requires at least one sub-link",
+        {
+          hubLinks: ["HUB mode requires at least one sub-link"],
+        },
+      );
     }
 
     const updates: Partial<NewLink> = { updatedAt: new Date() };
     if (newSlug !== undefined) updates.slug = newSlug;
     if (data.type !== undefined) updates.type = data.type;
-    if (data.redirectStatus !== undefined) updates.redirectStatus = data.redirectStatus;
-    if (data.forwardQueryParams !== undefined) updates.forwardQueryParams = data.forwardQueryParams;
+    if (data.redirectStatus !== undefined)
+      updates.redirectStatus = data.redirectStatus;
+    if (data.forwardQueryParams !== undefined)
+      updates.forwardQueryParams = data.forwardQueryParams;
     if (data.title !== undefined) updates.title = data.title.trim();
-    if (data.description !== undefined) updates.description = data.description?.trim() || null;
+    if (data.description !== undefined)
+      updates.description = data.description?.trim() || null;
     if (data.ogMode !== undefined || data.ogImageUrl !== undefined) {
-      const imageUrl = data.ogImageUrl !== undefined ? data.ogImageUrl : existing.ogImageUrl;
+      const imageUrl =
+        data.ogImageUrl !== undefined ? data.ogImageUrl : existing.ogImageUrl;
       const inferredMode = imageUrl ? "custom" : "auto";
-      const mode = data.ogMode ?? (data.ogImageUrl !== undefined ? inferredMode : existing.ogMode);
+      const mode =
+        data.ogMode ??
+        (data.ogImageUrl !== undefined ? inferredMode : existing.ogMode);
       validateOgMode(mode, imageUrl);
       if (data.ogImageUrl !== undefined) updates.ogImageUrl = imageUrl;
       updates.ogMode = mode;
     }
     if (data.category !== undefined) updates.category = data.category;
-    if (data.tags !== undefined) updates.tagsJson = JSON.stringify(Array.from(new Set(data.tags)));
+    if (data.tags !== undefined)
+      updates.tagsJson = JSON.stringify(Array.from(new Set(data.tags)));
     if (data.icon !== undefined) updates.icon = data.icon;
     if (data.isActive !== undefined) updates.isActive = data.isActive;
     if (data.isPublic !== undefined) updates.isPublic = data.isPublic;
@@ -443,7 +528,8 @@ export function createLinkService(db: AppDatabase) {
     if (data.expiresAt !== undefined) updates.expiresAt = data.expiresAt;
     if (data.maxClicks !== undefined) updates.maxClicks = data.maxClicks;
     // pin: string => establecer/rotar; null => eliminar protección; undefined => sin cambios.
-    if (data.pin !== undefined) updates.passwordHash = data.pin ? hashPin(data.pin) : null;
+    if (data.pin !== undefined)
+      updates.passwordHash = data.pin ? hashPin(data.pin) : null;
 
     // Mantener la fila coherente con su tipo final.
     if (finalType === "DIRECT") {
@@ -458,9 +544,13 @@ export function createLinkService(db: AppDatabase) {
       await db.update(links).set(updates).where(eq(links.id, id));
     } catch (err) {
       if (isUniqueSlugViolation(err)) {
-        throw new LinkServiceError("SLUG_ALREADY_EXISTS", `Slug "${newSlug}" is already in use`, {
-          slug: [`Slug "${newSlug}" is already in use`],
-        });
+        throw new LinkServiceError(
+          "SLUG_ALREADY_EXISTS",
+          `Slug "${newSlug}" is already in use`,
+          {
+            slug: [`Slug "${newSlug}" is already in use`],
+          },
+        );
       }
       throw err;
     }
@@ -470,7 +560,10 @@ export function createLinkService(db: AppDatabase) {
     return toLinkDTO(updated);
   }
 
-  async function toggleLinkFlags(id: string, flags: LinkFlagsPatch): Promise<LinkDTO> {
+  async function toggleLinkFlags(
+    id: string,
+    flags: LinkFlagsPatch,
+  ): Promise<LinkDTO> {
     const patch: LinkFlagsPatch = {};
     if (typeof flags.isActive === "boolean") patch.isActive = flags.isActive;
     if (typeof flags.isPinned === "boolean") patch.isPinned = flags.isPinned;
@@ -480,7 +573,8 @@ export function createLinkService(db: AppDatabase) {
 
   async function deleteLink(id: string): Promise<void> {
     const result = await db.delete(links).where(eq(links.id, id));
-    if (result.rowsAffected === 0) throw new LinkServiceError("NOT_FOUND", "Link not found");
+    if (result.rowsAffected === 0)
+      throw new LinkServiceError("NOT_FOUND", "Link not found");
   }
 
   /** Keyset pagination query over (is_pinned DESC, id DESC) shared by /admin and /. */
@@ -489,12 +583,20 @@ export function createLinkService(db: AppDatabase) {
     const nowMs = now.getTime();
 
     let limit = DEFAULT_PAGE_SIZE;
-    if (params.limit !== undefined && params.limit !== null && params.limit !== "") {
+    if (
+      params.limit !== undefined &&
+      params.limit !== null &&
+      params.limit !== ""
+    ) {
       const parsedLimit = Number(params.limit);
       if (!Number.isFinite(parsedLimit)) {
-        throw new LinkServiceError("VALIDATION_ERROR", "The limit parameter must be numeric", {
-          limit: ["Must be a number between 1 and 50"],
-        });
+        throw new LinkServiceError(
+          "VALIDATION_ERROR",
+          "The limit parameter must be numeric",
+          {
+            limit: ["Must be a number between 1 and 50"],
+          },
+        );
       }
       limit = Math.min(Math.max(Math.trunc(parsedLimit), 1), MAX_PAGE_SIZE);
     }
@@ -504,12 +606,16 @@ export function createLinkService(db: AppDatabase) {
     if (params.cursor) {
       const cursor = decodeLinkCursor(params.cursor);
       if (!cursor) {
-        throw new LinkServiceError("VALIDATION_ERROR", "Invalid pagination cursor", {
-          cursor: ["Invalid or corrupted cursor"],
-        });
+        throw new LinkServiceError(
+          "VALIDATION_ERROR",
+          "Invalid pagination cursor",
+          {
+            cursor: ["Invalid or corrupted cursor"],
+          },
+        );
       }
       conditions.push(
-        sql`(${links.isPinned} < ${cursor.p} OR (${links.isPinned} = ${cursor.p} AND ${links.id} < ${cursor.id}))`
+        sql`(${links.isPinned} < ${cursor.p} OR (${links.isPinned} = ${cursor.p} AND ${links.id} < ${cursor.id}))`,
       );
     }
 
@@ -528,16 +634,27 @@ export function createLinkService(db: AppDatabase) {
 
     if (scope === "public") {
       // Strict isolation: enforced on the server, never dependent on client parameters.
-      conditions.push(eq(links.isPublic, true), eq(links.isActive, true), notExpiredSql(nowMs));
+      conditions.push(
+        eq(links.isPublic, true),
+        eq(links.isActive, true),
+        notExpiredSql(nowMs),
+      );
     } else {
-      const statusResult = LinkStatusFilterSchema.safeParse(params.status || "all");
+      const statusResult = LinkStatusFilterSchema.safeParse(
+        params.status || "all",
+      );
       if (!statusResult.success) {
-        throw new LinkServiceError("VALIDATION_ERROR", "Invalid status filter", {
-          status: ["Allowed values: all, active, inactive, expired, pinned"],
-        });
+        throw new LinkServiceError(
+          "VALIDATION_ERROR",
+          "Invalid status filter",
+          {
+            status: ["Allowed values: all, active, inactive, expired, pinned"],
+          },
+        );
       }
       const status: LinkStatusFilter = statusResult.data;
-      if (status === "active") conditions.push(eq(links.isActive, true), notExpiredSql(nowMs));
+      if (status === "active")
+        conditions.push(eq(links.isActive, true), notExpiredSql(nowMs));
       if (status === "inactive") conditions.push(eq(links.isActive, false));
       if (status === "expired") conditions.push(expiredSql(nowMs));
       if (status === "pinned") conditions.push(eq(links.isPinned, true));
@@ -554,12 +671,16 @@ export function createLinkService(db: AppDatabase) {
     const pageRows = hasNextPage ? rows.slice(0, limit) : rows;
     const last = pageRows[pageRows.length - 1];
     const nextCursor =
-      hasNextPage && last ? encodeLinkCursor({ p: last.isPinned ? 1 : 0, id: last.id }) : null;
+      hasNextPage && last
+        ? encodeLinkCursor({ p: last.isPinned ? 1 : 0, id: last.id })
+        : null;
 
     return { rows: pageRows, nextCursor, hasNextPage, now };
   }
 
-  async function listLinksPaginated(params: ListLinksParams = {}): Promise<PaginatedResult<LinkDTO>> {
+  async function listLinksPaginated(
+    params: ListLinksParams = {},
+  ): Promise<PaginatedResult<LinkDTO>> {
     const page = await queryPage(params, "admin");
     return {
       items: page.rows.map((row) => toLinkDTO(row, page.now)),
@@ -569,7 +690,7 @@ export function createLinkService(db: AppDatabase) {
   }
 
   async function listPublicLinksPaginated(
-    params: Omit<ListLinksParams, "status"> = {}
+    params: Omit<ListLinksParams, "status"> = {},
   ): Promise<PaginatedResult<PublicLinkDTO>> {
     const page = await queryPage(params, "public");
     return {

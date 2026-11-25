@@ -16,7 +16,9 @@ describe("Debounce Controller & Hook Logic (300ms)", () => {
 
   it("emits only the final value after 300ms of inactivity", () => {
     const emitted: string[] = [];
-    const controller = createDebounceController("", 300, (v) => emitted.push(v));
+    const controller = createDebounceController("", 300, (v) =>
+      emitted.push(v),
+    );
 
     controller.schedule("g");
     vi.advanceTimersByTime(100);
@@ -37,7 +39,9 @@ describe("Debounce Controller & Hook Logic (300ms)", () => {
 
   it("cancels pending emissions cleanly on unmount/cancel", () => {
     const emitted: string[] = [];
-    const controller = createDebounceController("", 300, (v) => emitted.push(v));
+    const controller = createDebounceController("", 300, (v) =>
+      emitted.push(v),
+    );
 
     controller.schedule("pendiente");
     vi.advanceTimersByTime(150);
@@ -55,7 +59,7 @@ describe("Infinite Scroll Observer & Guard Logic", () => {
         isIntersecting: true,
         hasNextPage: true,
         isFetchingNextPage: true,
-      })
+      }),
     ).toBe(false);
 
     expect(
@@ -63,7 +67,7 @@ describe("Infinite Scroll Observer & Guard Logic", () => {
         isIntersecting: true,
         hasNextPage: false,
         isFetchingNextPage: false,
-      })
+      }),
     ).toBe(false);
 
     expect(
@@ -71,7 +75,7 @@ describe("Infinite Scroll Observer & Guard Logic", () => {
         isIntersecting: false,
         hasNextPage: true,
         isFetchingNextPage: false,
-      })
+      }),
     ).toBe(false);
 
     expect(
@@ -79,12 +83,14 @@ describe("Infinite Scroll Observer & Guard Logic", () => {
         isIntersecting: true,
         hasNextPage: true,
         isFetchingNextPage: false,
-      })
+      }),
     ).toBe(true);
   });
 
   it("invokes onLoadMore once per intersection cycle and disconnects cleanly", () => {
-    let storedCallback: ((entries: Array<{ isIntersecting: boolean }>) => void) | null = null;
+    let storedCallback:
+      | ((entries: Array<{ isIntersecting: boolean }>) => void)
+      | null = null;
     let disconnected = false;
     let loadMoreCalls = 0;
 

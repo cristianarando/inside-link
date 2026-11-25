@@ -4,7 +4,11 @@ import { renderHubLandingHtml } from "@/components/hub/hub-landing-view";
 import { renderPinUnlockHtml } from "@/components/hub/pin-unlock-form";
 import { getCanonicalBaseUrl } from "@/server/og/presentation";
 import { resolutionService } from "@/server/services";
-import { escapeHtml, getPortfolioBaseUrl, renderOpenGraphHtml } from "@/server/services/og-render.service";
+import {
+  escapeHtml,
+  getPortfolioBaseUrl,
+  renderOpenGraphHtml,
+} from "@/server/services/og-render.service";
 import type { ResolutionService } from "@/server/services/resolution.service";
 
 function getCanonicalHostLabel(): string {
@@ -54,7 +58,7 @@ function renderNotFoundHtml(slug: string): string {
 
 function scheduleClickTracking(
   service: ResolutionService,
-  payload: { linkId: string; headers: Headers; searchParams: URLSearchParams }
+  payload: { linkId: string; headers: Headers; searchParams: URLSearchParams },
 ) {
   const task = () => service.recordClickEvent(payload);
   try {
@@ -76,7 +80,7 @@ const NO_STORE_HEADERS = {
 export async function handleSlugGet(
   request: NextRequest | Request,
   slug: string,
-  service: ResolutionService = resolutionService
+  service: ResolutionService = resolutionService,
 ): Promise<Response> {
   const url = new URL(request.url);
   const result = await service.resolveSlugRequest(slug, {
@@ -177,7 +181,7 @@ export async function handleSlugGet(
 
 export async function GET(
   request: NextRequest,
-  context: { params: Promise<{ slug: string }> }
+  context: { params: Promise<{ slug: string }> },
 ): Promise<Response> {
   const { slug } = await context.params;
   return handleSlugGet(request, slug);

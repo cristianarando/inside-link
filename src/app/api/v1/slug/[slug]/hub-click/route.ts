@@ -31,7 +31,7 @@ export async function handleHubSubLinkClickPost(
   deps: { db: AppDatabase; resolution: ResolutionService; now?: Date } = {
     db,
     resolution: resolutionService,
-  }
+  },
 ): Promise<NextResponse> {
   let body: unknown;
   try {
@@ -39,7 +39,7 @@ export async function handleHubSubLinkClickPost(
   } catch {
     return NextResponse.json(
       { error: { code: "INVALID_JSON", message: "Invalid JSON body" } },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -47,7 +47,7 @@ export async function handleHubSubLinkClickPost(
   if (!parsed.success) {
     return NextResponse.json(
       { error: { code: "VALIDATION_ERROR", message: "subLinkId is required" } },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -67,8 +67,13 @@ export async function handleHubSubLinkClickPost(
     (row.expiresAt && row.expiresAt.getTime() <= now.getTime())
   ) {
     return NextResponse.json(
-      { error: { code: "NOT_FOUND", message: "Micro-landing not found or inactive" } },
-      { status: 404 }
+      {
+        error: {
+          code: "NOT_FOUND",
+          message: "Micro-landing not found or inactive",
+        },
+      },
+      { status: 404 },
     );
   }
 
@@ -77,8 +82,13 @@ export async function handleHubSubLinkClickPost(
     !hasValidPinUnlockCookie(request.headers, row.id, row.passwordHash, now)
   ) {
     return NextResponse.json(
-      { error: { code: "PIN_UNLOCK_REQUIRED", message: "PIN verification required" } },
-      { status: 401 }
+      {
+        error: {
+          code: "PIN_UNLOCK_REQUIRED",
+          message: "PIN verification required",
+        },
+      },
+      { status: 401 },
     );
   }
 
@@ -87,7 +97,7 @@ export async function handleHubSubLinkClickPost(
   if (!hasSubLink) {
     return NextResponse.json(
       { error: { code: "INVALID_SUB_LINK", message: "Invalid HUB sub-link" } },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -98,12 +108,14 @@ export async function handleHubSubLinkClickPost(
     now,
   });
 
-  return NextResponse.json({ data: { recorded, subLinkId: parsed.data.subLinkId } });
+  return NextResponse.json({
+    data: { recorded, subLinkId: parsed.data.subLinkId },
+  });
 }
 
 export async function POST(
   request: Request,
-  context: { params: Promise<{ slug: string }> }
+  context: { params: Promise<{ slug: string }> },
 ): Promise<NextResponse> {
   const { slug } = await context.params;
   return handleHubSubLinkClickPost(request, slug);

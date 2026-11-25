@@ -6,7 +6,10 @@ import { describe, expect, it } from "vitest";
 
 import { handleSlugGet } from "../../src/app/(public)/[slug]/route";
 import { handleListPublicLinksGet } from "../../src/app/api/v1/links/public/route";
-import type { PaginatedResult, PublicLinkDTO } from "../../src/lib/types/link-dto";
+import type {
+  PaginatedResult,
+  PublicLinkDTO,
+} from "../../src/lib/types/link-dto";
 import * as schema from "../../src/server/db/schema";
 import { createLinkService } from "../../src/server/services/link.service";
 import { createResolutionService } from "../../src/server/services/resolution.service";
@@ -48,14 +51,14 @@ describe("T-023 E2E (Público y Redirección): /[slug], Open Graph y /links con 
       const redirectRes = await handleSlugGet(
         new Request(
           "https://cristianarando.dev/recurso-dev-01?utm_source=linkedin&lang=en",
-          { headers: { "user-agent": "Mozilla/5.0 Chrome/135.0" } }
+          { headers: { "user-agent": "Mozilla/5.0 Chrome/135.0" } },
         ),
         "recurso-dev-01",
-        resolutionService
+        resolutionService,
       );
       expect(redirectRes.status).toBe(307);
       expect(redirectRes.headers.get("location")).toBe(
-        "https://cristianarando.dev/blog/post-1?lang=es&utm_source=linkedin"
+        "https://cristianarando.dev/blog/post-1?lang=es&utm_source=linkedin",
       );
 
       // 3. Simulación de bot WhatsApp/2.0 -> 200 OK con Open Graph
@@ -64,7 +67,7 @@ describe("T-023 E2E (Público y Redirección): /[slug], Open Graph y /links con 
           headers: { "user-agent": "WhatsApp/2.24.1 A" },
         }),
         "recurso-dev-02",
-        resolutionService
+        resolutionService,
       );
       expect(botRes.status).toBe(200);
       const ogHtml = await botRes.text();
@@ -74,9 +77,10 @@ describe("T-023 E2E (Público y Redirección): /[slug], Open Graph y /links con 
       // 4. Navegación en /links: lote inicial (12 ítems) + siguiente página por cursor (3 ítems)
       const firstPageRes = await handleListPublicLinksGet(
         new Request("https://cristianarando.dev/api/v1/links/public?limit=12"),
-        linkService
+        linkService,
       );
-      const firstPage = (await firstPageRes.json()) as PaginatedResult<PublicLinkDTO>;
+      const firstPage =
+        (await firstPageRes.json()) as PaginatedResult<PublicLinkDTO>;
       expect(firstPage.items).toHaveLength(12);
       expect(firstPage.items[0]?.slug).toBe("recurso-dev-15"); // fijado arriba
       expect(firstPage.hasNextPage).toBe(true);
@@ -85,12 +89,13 @@ describe("T-023 E2E (Público y Redirección): /[slug], Open Graph y /links con 
       const secondPageRes = await handleListPublicLinksGet(
         new Request(
           `https://cristianarando.dev/api/v1/links/public?limit=12&cursor=${encodeURIComponent(
-            firstPage.nextCursor!
-          )}`
+            firstPage.nextCursor!,
+          )}`,
         ),
-        linkService
+        linkService,
       );
-      const secondPage = (await secondPageRes.json()) as PaginatedResult<PublicLinkDTO>;
+      const secondPage =
+        (await secondPageRes.json()) as PaginatedResult<PublicLinkDTO>;
       expect(secondPage.items).toHaveLength(3);
       expect(secondPage.hasNextPage).toBe(false);
     } finally {

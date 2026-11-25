@@ -14,7 +14,9 @@ export function encodeLinkCursor(cursor: LinkCursor): string {
     .replace(/=+$/, "");
 }
 
-export function decodeLinkCursor(cursorStr: string | null | undefined): LinkCursor | null {
+export function decodeLinkCursor(
+  cursorStr: string | null | undefined,
+): LinkCursor | null {
   if (!cursorStr || typeof cursorStr !== "string") {
     return null;
   }

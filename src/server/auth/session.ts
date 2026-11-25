@@ -72,7 +72,7 @@ export async function assertAdminApiSession(reqHeaders: Headers) {
             message: "Unauthorized: Administrator session required.",
           },
         },
-        { status: 401 }
+        { status: 401 },
       ),
     };
   }

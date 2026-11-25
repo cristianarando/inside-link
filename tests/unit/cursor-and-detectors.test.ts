@@ -26,26 +26,50 @@ describe("Composite Cursor Codec", () => {
     expect(decodeLinkCursor(undefined)).toBeNull();
     expect(decodeLinkCursor("")).toBeNull();
     expect(decodeLinkCursor("not-base64-json")).toBeNull();
-    expect(decodeLinkCursor(Buffer.from(JSON.stringify({ p: 2, id: "bad" })).toString("base64"))).toBeNull();
-    expect(decodeLinkCursor(Buffer.from(JSON.stringify({ p: 1, id: "short" })).toString("base64"))).toBeNull();
+    expect(
+      decodeLinkCursor(
+        Buffer.from(JSON.stringify({ p: 2, id: "bad" })).toString("base64"),
+      ),
+    ).toBeNull();
+    expect(
+      decodeLinkCursor(
+        Buffer.from(JSON.stringify({ p: 1, id: "short" })).toString("base64"),
+      ),
+    ).toBeNull();
   });
 });
 
 describe("Bot & Prefetch Detector", () => {
   it("detects social preview crawlers and bots", () => {
     expect(isSocialPreviewBot("WhatsApp/2.24.1.78 A")).toBe(true);
-    expect(isSocialPreviewBot("Mozilla/5.0 (compatible; LinkedInBot/1.0; +http://www.linkedin.com)")).toBe(true);
+    expect(
+      isSocialPreviewBot(
+        "Mozilla/5.0 (compatible; LinkedInBot/1.0; +http://www.linkedin.com)",
+      ),
+    ).toBe(true);
     expect(isSocialPreviewBot("Twitterbot/1.0")).toBe(true);
-    expect(isSocialPreviewBot("Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)")).toBe(true);
-    expect(isSocialPreviewBot("facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)")).toBe(true);
+    expect(
+      isSocialPreviewBot(
+        "Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)",
+      ),
+    ).toBe(true);
+    expect(
+      isSocialPreviewBot(
+        "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+      ),
+    ).toBe(true);
   });
 
   it("does not flag regular human browsers as social preview bots", () => {
     expect(
-      isSocialPreviewBot("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36")
+      isSocialPreviewBot(
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+      ),
     ).toBe(false);
     expect(
-      isSocialPreviewBot("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1")
+      isSocialPreviewBot(
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
+      ),
     ).toBe(false);
   });
 
@@ -63,7 +87,8 @@ describe("Traffic Metadata Extractor", () => {
     const headers = {
       "x-vercel-ip-country": "bo",
       "x-vercel-ip-city": "Cochabamba",
-      "user-agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1",
+      "user-agent":
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1",
       referer: "https://www.linkedin.com/feed/",
     };
     const searchParams = new URLSearchParams("ref=portfolio_cv&source=web");

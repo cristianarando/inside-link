@@ -14,7 +14,10 @@ let foreignKeysInitPromise: Promise<unknown> | null = null;
  * Enables SQLite foreign key enforcement for local `file:` databases so
  * `ON DELETE CASCADE` triggers consistently outside Turso Cloud.
  */
-export function ensureLocalForeignKeys(client: Client, url: string): Promise<unknown> | null {
+export function ensureLocalForeignKeys(
+  client: Client,
+  url: string,
+): Promise<unknown> | null {
   if (!url.startsWith("file:")) {
     return null;
   }

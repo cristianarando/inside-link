@@ -1,11 +1,17 @@
 import { describe, it, expect } from "vitest";
-import { normalizeSlug, SlugSchema, classifySlug } from "@/lib/validations/slug.schema";
+import {
+  normalizeSlug,
+  SlugSchema,
+  classifySlug,
+} from "@/lib/validations/slug.schema";
 import { CreateLinkSchema, SafeUrlSchema } from "@/lib/validations/link.schema";
 import { isReservedSlug } from "@/lib/constants/reserved-slugs";
 
 describe("Slug Normalization & Anti-Collision Engine", () => {
   it("normalizes spaces to hyphens and strips diacritics", () => {
-    expect(normalizeSlug("  Mi Guía Turística 2026  ")).toBe("mi-guia-turistica-2026");
+    expect(normalizeSlug("  Mi Guía Turística 2026  ")).toBe(
+      "mi-guia-turistica-2026",
+    );
     expect(normalizeSlug("Proyecto---Especial")).toBe("proyecto-especial");
     expect(normalizeSlug("--inicio--")).toBe("inicio");
   });
@@ -61,11 +67,23 @@ describe("Slug Normalization & Anti-Collision Engine", () => {
   });
 
   it("classifySlug distinguishes reserved from invalid slugs", () => {
-    expect(classifySlug("admin")).toMatchObject({ ok: false, reason: "RESERVED" });
-    expect(classifySlug("favicon.ico")).toMatchObject({ ok: false, reason: "RESERVED" });
-    expect(classifySlug("my.page")).toMatchObject({ ok: false, reason: "INVALID" });
+    expect(classifySlug("admin")).toMatchObject({
+      ok: false,
+      reason: "RESERVED",
+    });
+    expect(classifySlug("favicon.ico")).toMatchObject({
+      ok: false,
+      reason: "RESERVED",
+    });
+    expect(classifySlug("my.page")).toMatchObject({
+      ok: false,
+      reason: "INVALID",
+    });
     expect(classifySlug("x1")).toMatchObject({ ok: false, reason: "INVALID" });
-    expect(classifySlug("  Mi Proyecto  ")).toEqual({ ok: true, normalized: "mi-proyecto" });
+    expect(classifySlug("  Mi Proyecto  ")).toEqual({
+      ok: true,
+      normalized: "mi-proyecto",
+    });
   });
 
   it("rejects slugs that are too short (< 3 characters)", () => {
@@ -91,14 +109,21 @@ describe("Slug Normalization & Anti-Collision Engine", () => {
 describe("Link Schema & Security Validation", () => {
   it("rejects malicious XSS protocols in destination URLs", () => {
     expect(SafeUrlSchema.safeParse("javascript:alert(1)").success).toBe(false);
-    expect(SafeUrlSchema.safeParse("data:text/html,<script>alert(1)</script>").success).toBe(false);
+    expect(
+      SafeUrlSchema.safeParse("data:text/html,<script>alert(1)</script>")
+        .success,
+    ).toBe(false);
     expect(SafeUrlSchema.safeParse("vbscript:msgbox(1)").success).toBe(false);
     expect(SafeUrlSchema.safeParse("file:///etc/passwd").success).toBe(false);
   });
 
   it("accepts valid HTTPS and HTTP URLs", () => {
-    expect(SafeUrlSchema.safeParse("https://github.com/cristianarando").success).toBe(true);
-    expect(SafeUrlSchema.safeParse("http://localhost:3000/demo").success).toBe(true);
+    expect(
+      SafeUrlSchema.safeParse("https://github.com/cristianarando").success,
+    ).toBe(true);
+    expect(SafeUrlSchema.safeParse("http://localhost:3000/demo").success).toBe(
+      true,
+    );
   });
 
   it("enforces DIRECT link invariants: requires destinationUrl", () => {

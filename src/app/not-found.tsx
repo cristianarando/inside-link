@@ -21,7 +21,9 @@ export default function NotFoundPage() {
         </h1>
         <p className="mt-3 text-sm leading-relaxed text-zinc-400">
           The route you tried to open is not registered on{" "}
-          <span className="font-mono font-medium text-zinc-200">{canonicalHost}</span>{" "}
+          <span className="font-mono font-medium text-zinc-200">
+            {canonicalHost}
+          </span>{" "}
           or has been removed.
         </p>
 

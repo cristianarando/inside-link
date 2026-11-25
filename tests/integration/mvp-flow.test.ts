@@ -66,7 +66,7 @@ describe("Phase P1 Gate — End-to-End MVP Flow Integration", () => {
           destinationUrl: "https://github.com/cristianarando/one",
         }),
       }),
-      adminDeps
+      adminDeps,
     );
     expect(res1.status).toBe(201);
     const link1 = (await res1.json()) as LinkDTO;
@@ -81,7 +81,7 @@ describe("Phase P1 Gate — End-to-End MVP Flow Integration", () => {
           destinationUrl: "https://github.com/cristianarando/two",
         }),
       }),
-      adminDeps
+      adminDeps,
     );
     expect(res2.status).toBe(201);
     const link2 = (await res2.json()) as LinkDTO;
@@ -89,7 +89,7 @@ describe("Phase P1 Gate — End-to-End MVP Flow Integration", () => {
     // 2. Listar en primera página por cursor (orden descendente por ULID: segundo-enlace primero)
     const listBeforePin = await handleListLinksGet(
       new Request("https://cristianarando.dev/api/v1/links?limit=12"),
-      adminDeps
+      adminDeps,
     );
     const pageBefore = await listBeforePin.json();
     expect(pageBefore.items.map((l: LinkDTO) => l.slug)).toEqual([
@@ -105,7 +105,7 @@ describe("Phase P1 Gate — End-to-End MVP Flow Integration", () => {
         body: JSON.stringify({ isPinned: true }),
       }),
       link1.id,
-      adminDeps
+      adminDeps,
     );
     expect(pinRes.status).toBe(200);
     const pinnedLink1 = (await pinRes.json()) as LinkDTO;
@@ -118,7 +118,7 @@ describe("Phase P1 Gate — End-to-End MVP Flow Integration", () => {
 
     const listAfterPin = await handleListLinksGet(
       new Request("https://cristianarando.dev/api/v1/links?limit=12"),
-      adminDeps
+      adminDeps,
     );
     const pageAfter = await listAfterPin.json();
     expect(pageAfter.items.map((l: LinkDTO) => l.slug)).toEqual([
@@ -130,16 +130,17 @@ describe("Phase P1 Gate — End-to-End MVP Flow Integration", () => {
     const redirectRes = await handleSlugGet(
       new Request("https://cristianarando.dev/primer-enlace?ref=cv", {
         headers: {
-          "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) Chrome/130.0",
+          "user-agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) Chrome/130.0",
           "x-vercel-ip-country": "BO",
         },
       }),
       "primer-enlace",
-      resolution
+      resolution,
     );
     expect(redirectRes.status).toBe(307);
     expect(redirectRes.headers.get("Location")).toBe(
-      "https://github.com/cristianarando/one?ref=cv"
+      "https://github.com/cristianarando/one?ref=cv",
     );
 
     await new Promise((r) => setTimeout(r, 25));
@@ -155,14 +156,14 @@ describe("Phase P1 Gate — End-to-End MVP Flow Integration", () => {
         body: JSON.stringify({ isActive: false }),
       }),
       link1.id,
-      adminDeps
+      adminDeps,
     );
     expect(pauseRes.status).toBe(200);
 
     const blockedRes = await handleSlugGet(
       new Request("https://cristianarando.dev/primer-enlace"),
       "primer-enlace",
-      resolution
+      resolution,
     );
     expect(blockedRes.status).toBe(410);
     expect(blockedRes.headers.get("Location")).toBeNull();

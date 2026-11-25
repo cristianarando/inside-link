@@ -62,41 +62,52 @@ describe("Admin Links API Route Handlers (/api/v1/links/*)", () => {
 
     const getRes = await handleListLinksGet(
       new Request("https://cristianarando.dev/api/v1/links"),
-      unauthDeps
+      unauthDeps,
     );
     expect(getRes.status).toBe(401);
 
     const postRes = await handleCreateLinkPost(
       new Request("https://cristianarando.dev/api/v1/links", {
         method: "POST",
-        body: JSON.stringify({ title: "Test", destinationUrl: "https://example.com" }),
+        body: JSON.stringify({
+          title: "Test",
+          destinationUrl: "https://example.com",
+        }),
       }),
-      unauthDeps
+      unauthDeps,
     );
     expect(postRes.status).toBe(401);
 
     const checkRes = await handleCheckSlugGet(
-      new Request("https://cristianarando.dev/api/v1/links/check-slug?slug=github"),
-      unauthDeps
+      new Request(
+        "https://cristianarando.dev/api/v1/links/check-slug?slug=github",
+      ),
+      unauthDeps,
     );
     expect(checkRes.status).toBe(401);
 
     const patchRes = await handleUpdateLinkPatch(
-      new Request("https://cristianarando.dev/api/v1/links/01J00000000000000000000000", {
-        method: "PATCH",
-        body: JSON.stringify({ isActive: false }),
-      }),
+      new Request(
+        "https://cristianarando.dev/api/v1/links/01J00000000000000000000000",
+        {
+          method: "PATCH",
+          body: JSON.stringify({ isActive: false }),
+        },
+      ),
       "01J00000000000000000000000",
-      unauthDeps
+      unauthDeps,
     );
     expect(patchRes.status).toBe(401);
 
     const delRes = await handleDeleteLinkDelete(
-      new Request("https://cristianarando.dev/api/v1/links/01J00000000000000000000000", {
-        method: "DELETE",
-      }),
+      new Request(
+        "https://cristianarando.dev/api/v1/links/01J00000000000000000000000",
+        {
+          method: "DELETE",
+        },
+      ),
       "01J00000000000000000000000",
-      unauthDeps
+      unauthDeps,
     );
     expect(delRes.status).toBe(401);
   });
@@ -116,7 +127,7 @@ describe("Admin Links API Route Handlers (/api/v1/links/*)", () => {
           tags: ["turismo", "nextjs"],
         }),
       }),
-      ctx.authorizedDeps
+      ctx.authorizedDeps,
     );
     expect(createRes.status).toBe(201);
     const created = await createRes.json();
@@ -133,7 +144,7 @@ describe("Admin Links API Route Handlers (/api/v1/links/*)", () => {
           destinationUrl: "https://example.com",
         }),
       }),
-      ctx.authorizedDeps
+      ctx.authorizedDeps,
     );
     expect(reservedRes.status).toBe(422);
     const reservedBody = await reservedRes.json();
@@ -150,16 +161,16 @@ describe("Admin Links API Route Handlers (/api/v1/links/*)", () => {
           destinationUrl: "https://example.com",
         }),
       }),
-      ctx.authorizedDeps
+      ctx.authorizedDeps,
     );
     expect(dupRes.status).toBe(409);
 
     // 4. check-slug ocupado, excluido y libre
     const takenCheck = await handleCheckSlugGet(
       new Request(
-        "https://cristianarando.dev/api/v1/links/check-slug?slug=proyecto-guia-turistica"
+        "https://cristianarando.dev/api/v1/links/check-slug?slug=proyecto-guia-turistica",
       ),
-      ctx.authorizedDeps
+      ctx.authorizedDeps,
     );
     expect(takenCheck.status).toBe(200);
     expect(await takenCheck.json()).toMatchObject({
@@ -169,15 +180,17 @@ describe("Admin Links API Route Handlers (/api/v1/links/*)", () => {
 
     const selfCheck = await handleCheckSlugGet(
       new Request(
-        `https://cristianarando.dev/api/v1/links/check-slug?slug=proyecto-guia-turistica&excludeId=${created.id}`
+        `https://cristianarando.dev/api/v1/links/check-slug?slug=proyecto-guia-turistica&excludeId=${created.id}`,
       ),
-      ctx.authorizedDeps
+      ctx.authorizedDeps,
     );
     expect(await selfCheck.json()).toMatchObject({ available: true });
 
     const randomSlugRes = await handleCheckSlugGet(
-      new Request("https://cristianarando.dev/api/v1/links/check-slug?action=generate"),
-      ctx.authorizedDeps
+      new Request(
+        "https://cristianarando.dev/api/v1/links/check-slug?action=generate",
+      ),
+      ctx.authorizedDeps,
     );
     const randomBody = await randomSlugRes.json();
     expect(randomBody.available).toBe(true);
@@ -185,8 +198,10 @@ describe("Admin Links API Route Handlers (/api/v1/links/*)", () => {
 
     // 5. GET paginado con búsqueda
     const listRes = await handleListLinksGet(
-      new Request("https://cristianarando.dev/api/v1/links?q=turistica&limit=12"),
-      ctx.authorizedDeps
+      new Request(
+        "https://cristianarando.dev/api/v1/links?q=turistica&limit=12",
+      ),
+      ctx.authorizedDeps,
     );
     expect(listRes.status).toBe(200);
     const listBody = await listRes.json();
@@ -205,7 +220,7 @@ describe("Admin Links API Route Handlers (/api/v1/links/*)", () => {
         }),
       }),
       created.id,
-      ctx.authorizedDeps
+      ctx.authorizedDeps,
     );
     expect(patchRes.status).toBe(200);
     const patched = await patchRes.json();
@@ -219,7 +234,7 @@ describe("Admin Links API Route Handlers (/api/v1/links/*)", () => {
         method: "DELETE",
       }),
       created.id,
-      ctx.authorizedDeps
+      ctx.authorizedDeps,
     );
     expect(delRes.status).toBe(200);
 
@@ -229,7 +244,7 @@ describe("Admin Links API Route Handlers (/api/v1/links/*)", () => {
         method: "DELETE",
       }),
       created.id,
-      ctx.authorizedDeps
+      ctx.authorizedDeps,
     );
     expect(delAgain.status).toBe(404);
   });

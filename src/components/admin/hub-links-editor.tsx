@@ -28,7 +28,7 @@ export function HubLinksEditor({ items, onChange }: HubLinksEditorProps) {
 
   const handleUpdate = (index: number, patch: Partial<HubLinkItem>) => {
     onChange(
-      items.map((item, idx) => (idx === index ? { ...item, ...patch } : item))
+      items.map((item, idx) => (idx === index ? { ...item, ...patch } : item)),
     );
   };
 

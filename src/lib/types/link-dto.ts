@@ -8,8 +8,18 @@ import type { HubLinkItem } from "../validations/link.schema";
 export type OgMode = "auto" | "custom" | "minimal";
 
 export type LinkType = "DIRECT" | "HUB";
-export type LinkCategory = "social" | "project" | "resource" | "personal" | "temporary";
-export type LinkStatusFilter = "all" | "active" | "inactive" | "expired" | "pinned";
+export type LinkCategory =
+  | "social"
+  | "project"
+  | "resource"
+  | "personal"
+  | "temporary";
+export type LinkStatusFilter =
+  | "all"
+  | "active"
+  | "inactive"
+  | "expired"
+  | "pinned";
 
 /** Vista completa para el panel /admin. */
 export interface LinkDTO {

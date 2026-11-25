@@ -18,8 +18,8 @@ function buildTrustedOrigins(): string[] {
     new Set(
       candidates
         .map((origin) => origin.trim().replace(/\/+$/, ""))
-        .filter((origin) => origin.length > 0)
-    )
+        .filter((origin) => origin.length > 0),
+    ),
   );
 }
 
@@ -48,7 +48,8 @@ export function createAuthInstance(database: typeof defaultDb = defaultDb) {
         create: {
           before: async (account) => {
             if (account.providerId === "github") {
-              const allowedGithubId = process.env.ALLOWED_GITHUB_ID || env.ALLOWED_GITHUB_ID;
+              const allowedGithubId =
+                process.env.ALLOWED_GITHUB_ID || env.ALLOWED_GITHUB_ID;
               if (account.accountId !== allowedGithubId) {
                 throw new APIError("FORBIDDEN", {
                   message: "Access restricted exclusively to the domain owner.",
@@ -61,8 +62,12 @@ export function createAuthInstance(database: typeof defaultDb = defaultDb) {
       user: {
         create: {
           before: async (user) => {
-            const allowedEmail = process.env.ALLOWED_GITHUB_EMAIL || env.ALLOWED_GITHUB_EMAIL;
-            if (allowedEmail && user.email.toLowerCase() !== allowedEmail.toLowerCase()) {
+            const allowedEmail =
+              process.env.ALLOWED_GITHUB_EMAIL || env.ALLOWED_GITHUB_EMAIL;
+            if (
+              allowedEmail &&
+              user.email.toLowerCase() !== allowedEmail.toLowerCase()
+            ) {
               throw new APIError("FORBIDDEN", {
                 message: "Access restricted: email does not match owner.",
               });

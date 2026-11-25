@@ -77,19 +77,21 @@ const SLUG_FAST_REGEX = /^[a-z0-9]+(?:[-_][a-z0-9]+)*$/;
 
 function readHeader(
   headers: Headers | Record<string, string | string[] | undefined> | undefined,
-  name: string
+  name: string,
 ): string | null {
   if (!headers) return null;
   if (typeof (headers as Headers).get === "function") {
     return (headers as Headers).get(name);
   }
-  const value = (headers as Record<string, string | string[] | undefined>)[name.toLowerCase()];
+  const value = (headers as Record<string, string | string[] | undefined>)[
+    name.toLowerCase()
+  ];
   if (Array.isArray(value)) return value[0] ?? null;
   return value ?? null;
 }
 
 function toUrlSearchParams(
-  input: URLSearchParams | Record<string, string | undefined> | undefined
+  input: URLSearchParams | Record<string, string | undefined> | undefined,
 ): URLSearchParams {
   if (!input) return new URLSearchParams();
   if (input instanceof URLSearchParams) return input;
@@ -107,7 +109,7 @@ function toUrlSearchParams(
 export function buildDestinationUrl(
   baseDestination: string,
   incomingParams: URLSearchParams,
-  forwardQueryParams: boolean
+  forwardQueryParams: boolean,
 ): string {
   const target = new URL(baseDestination);
   if (target.protocol !== "http:" && target.protocol !== "https:") {
@@ -125,17 +127,21 @@ export function buildDestinationUrl(
   return target.toString();
 }
 
-function classifyInactiveReason(row: Link, nowMs: number): InactiveReason | null {
+function classifyInactiveReason(
+  row: Link,
+  nowMs: number,
+): InactiveReason | null {
   if (!row.isActive) return "INACTIVE";
   if (row.expiresAt && row.expiresAt.getTime() <= nowMs) return "EXPIRED";
-  if (row.maxClicks !== null && row.clicksCount >= row.maxClicks) return "MAX_CLICKS_REACHED";
+  if (row.maxClicks !== null && row.clicksCount >= row.maxClicks)
+    return "MAX_CLICKS_REACHED";
   return null;
 }
 
 export function createResolutionService(db: AppDatabase) {
   async function resolveSlugRequest(
     rawSlug: string,
-    options: ResolveSlugOptions = {}
+    options: ResolveSlugOptions = {},
   ): Promise<SlugResolutionResult> {
     const normalized = rawSlug.trim().toLowerCase();
 
@@ -147,13 +153,27 @@ export function createResolutionService(db: AppDatabase) {
       !SLUG_FAST_REGEX.test(normalized) ||
       isReservedSlug(normalized)
     ) {
-      return { kind: "NOT_FOUND", status: 404, slug: normalized, shouldTrackClick: false };
+      return {
+        kind: "NOT_FOUND",
+        status: 404,
+        slug: normalized,
+        shouldTrackClick: false,
+      };
     }
 
-    const rows = await db.select().from(links).where(eq(links.slug, normalized)).limit(1);
+    const rows = await db
+      .select()
+      .from(links)
+      .where(eq(links.slug, normalized))
+      .limit(1);
     const row = rows[0];
     if (!row) {
-      return { kind: "NOT_FOUND", status: 404, slug: normalized, shouldTrackClick: false };
+      return {
+        kind: "NOT_FOUND",
+        status: 404,
+        slug: normalized,
+        shouldTrackClick: false,
+      };
     }
 
     const now = options.now ?? new Date();
@@ -184,7 +204,7 @@ export function createResolutionService(db: AppDatabase) {
         options.headers,
         row.id,
         row.passwordHash,
-        now
+        now,
       );
       if (hasUnlockCookie && row.type === "HUB") {
         return {
@@ -207,7 +227,9 @@ export function createResolutionService(db: AppDatabase) {
       };
     }
 
-    const isPrefetch = options.headers ? isPrefetchRequest(options.headers) : false;
+    const isPrefetch = options.headers
+      ? isPrefetchRequest(options.headers)
+      : false;
 
     if (row.type === "HUB") {
       return {
@@ -220,7 +242,12 @@ export function createResolutionService(db: AppDatabase) {
     }
 
     if (!row.destinationUrl) {
-      return { kind: "NOT_FOUND", status: 404, slug: normalized, shouldTrackClick: false };
+      return {
+        kind: "NOT_FOUND",
+        status: 404,
+        slug: normalized,
+        shouldTrackClick: false,
+      };
     }
 
     let location: string;
@@ -228,10 +255,15 @@ export function createResolutionService(db: AppDatabase) {
       location = buildDestinationUrl(
         row.destinationUrl,
         toUrlSearchParams(options.searchParams),
-        row.forwardQueryParams
+        row.forwardQueryParams,
       );
     } catch {
-      return { kind: "NOT_FOUND", status: 404, slug: normalized, shouldTrackClick: false };
+      return {
+        kind: "NOT_FOUND",
+        status: 404,
+        slug: normalized,
+        shouldTrackClick: false,
+      };
     }
 
     const status = (
@@ -276,8 +308,8 @@ export function createResolutionService(db: AppDatabase) {
               eq(links.id, input.linkId),
               eq(links.type, "HUB"),
               eq(links.isActive, true),
-              sql`(${links.expiresAt} IS NULL OR ${links.expiresAt} > ${nowMs})`
-            )
+              sql`(${links.expiresAt} IS NULL OR ${links.expiresAt} > ${nowMs})`,
+            ),
           )
           .limit(1);
 
@@ -295,8 +327,8 @@ export function createResolutionService(db: AppDatabase) {
               eq(links.id, input.linkId),
               eq(links.isActive, true),
               sql`(${links.expiresAt} IS NULL OR ${links.expiresAt} > ${nowMs})`,
-              sql`(${links.maxClicks} IS NULL OR ${links.clicksCount} < ${links.maxClicks})`
-            )
+              sql`(${links.maxClicks} IS NULL OR ${links.clicksCount} < ${links.maxClicks})`,
+            ),
           );
 
         if (updateResult.rowsAffected === 0) {
@@ -304,7 +336,10 @@ export function createResolutionService(db: AppDatabase) {
         }
       }
 
-      const meta = extractTrafficMetadata(input.headers ?? {}, input.searchParams);
+      const meta = extractTrafficMetadata(
+        input.headers ?? {},
+        input.searchParams,
+      );
       await db.insert(clickEvents).values({
         id: nextEventId(),
         linkId: input.linkId,
