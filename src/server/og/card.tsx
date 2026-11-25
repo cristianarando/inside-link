@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import React from "react";
 import { ImageResponse } from "next/og";
+import { getCanonicalHost } from "@/lib/env";
 import type { OgPresentation } from "./presentation";
 
 export const OG_WIDTH = 1200;
@@ -107,7 +108,7 @@ export function renderOgImage(
               gap: 3,
             }}
           >
-            <span>links.cristianarando.dev</span>
+            <span>{getCanonicalHost()}</span>
             {card.slug && <span style={{ fontSize: 17 }}>{card.slug}</span>}
           </div>
         </div>

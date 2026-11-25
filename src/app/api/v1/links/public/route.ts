@@ -37,7 +37,7 @@ export async function handleListPublicLinksGet(
       );
     }
     return NextResponse.json(
-      { error: { code: "INTERNAL_ERROR", message: "Error interno del servidor" } },
+      { error: { code: "INTERNAL_ERROR", message: "Internal server error" } },
       { status: 500 }
     );
   }

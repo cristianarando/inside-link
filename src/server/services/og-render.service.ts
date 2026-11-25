@@ -1,3 +1,4 @@
+import { getCanonicalHost } from "@/lib/env";
 import type { LinkDTO } from "@/lib/types/link-dto";
 import {
   buildOgPresentation,
@@ -17,7 +18,7 @@ export function renderOgMetaTags(link: LinkDTO): string {
   const canonical = escapeHtml(link.shortUrl);
   return `<link rel="canonical" href="${canonical}" />
   <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="links.cristianarando.dev" />
+  <meta property="og:site_name" content="${escapeHtml(getCanonicalHost())}" />
   <meta property="og:locale" content="en_US" />
   <meta property="og:title" content="${title}" />
   <meta property="og:description" content="${description}" />

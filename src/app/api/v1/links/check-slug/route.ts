@@ -33,7 +33,7 @@ export async function handleCheckSlugGet(
         {
           error: {
             code: "VALIDATION_ERROR",
-            message: "El parámetro 'slug' es obligatorio.",
+            message: "The 'slug' parameter is required.",
           },
         },
         { status: 400 }

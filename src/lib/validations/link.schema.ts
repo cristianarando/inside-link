@@ -4,7 +4,7 @@ import { SlugSchema } from "./slug.schema";
 export const SafeUrlSchema = z
   .string()
   .trim()
-  .url("Debe ser una URL válida")
+  .url("Must be a valid URL")
   .refine(
     (url) => {
       try {
@@ -14,12 +14,12 @@ export const SafeUrlSchema = z
         return false;
       }
     },
-    "Solo se permiten URLs con protocolo http:// o https://"
+    "Only http:// or https:// URLs are allowed"
   );
 
 export const HubLinkItemSchema = z.object({
   id: z.string().min(1).max(32),
-  label: z.string().min(1, "El texto del botón es requerido").max(64),
+  label: z.string().min(1, "Button label is required").max(64),
   url: SafeUrlSchema,
   icon: z.string().default("external-link"),
   variant: z.enum(["primary", "secondary", "outline"]).default("primary"),
@@ -47,7 +47,7 @@ export const BaseLinkSchema = z.object({
   ]).default(307),
   forwardQueryParams: z.boolean().default(true),
   hubLinks: z.array(HubLinkItemSchema).max(12).optional().nullable(),
-  title: z.string().min(1, "El título es requerido").max(150),
+  title: z.string().min(1, "Title is required").max(150),
   description: z.string().max(500).optional().nullable(),
   ogImageUrl: SafeUrlSchema.optional().nullable(),
   ogMode: z.enum(["auto", "custom", "minimal"]).optional(),
@@ -68,7 +68,7 @@ export const BaseLinkSchema = z.object({
   isPinned: z.boolean().default(false),
   pin: z
     .string()
-    .min(4, "El PIN debe tener al menos 4 caracteres")
+    .min(4, "PIN must be at least 4 characters")
     .max(32)
     .optional()
     .nullable(),
@@ -86,7 +86,7 @@ function validateLinkInvariants(
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["slug"],
-        message: parsed.error.issues[0]?.message || "Slug inválido",
+        message: parsed.error.issues[0]?.message || "Invalid slug",
       });
     }
   }
@@ -96,7 +96,7 @@ function validateLinkInvariants(
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["destinationUrl"],
-        message: "La URL de destino es obligatoria para enlaces de tipo DIRECT",
+        message: "Destination URL is required for DIRECT links",
       });
     }
   }
@@ -106,7 +106,7 @@ function validateLinkInvariants(
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["hubLinks"],
-        message: "Debe incluir al menos un sub-enlace para el modo HUB",
+        message: "HUB mode requires at least one sub-link",
       });
     }
   }

@@ -1,19 +1,31 @@
 import { z } from "zod";
 
 const serverSchema = z.object({
-  TURSO_DATABASE_URL: z.string().min(1, "TURSO_DATABASE_URL es requerida"),
+  TURSO_DATABASE_URL: z.string().min(1, "TURSO_DATABASE_URL is required"),
   TURSO_AUTH_TOKEN: z.string().optional(),
-  BETTER_AUTH_SECRET: z.string().min(32, "BETTER_AUTH_SECRET debe tener al menos 32 caracteres"),
-  BETTER_AUTH_URL: z.string().url("BETTER_AUTH_URL debe ser una URL válida").default("http://localhost:3000"),
-  GITHUB_CLIENT_ID: z.string().min(1, "GITHUB_CLIENT_ID es requerida"),
-  GITHUB_CLIENT_SECRET: z.string().min(1, "GITHUB_CLIENT_SECRET es requerida"),
-  ALLOWED_GITHUB_ID: z.string().min(1, "ALLOWED_GITHUB_ID es requerida"),
+  BETTER_AUTH_SECRET: z
+    .string()
+    .min(32, "BETTER_AUTH_SECRET must be at least 32 characters long"),
+  BETTER_AUTH_URL: z
+    .string()
+    .url("BETTER_AUTH_URL must be a valid URL")
+    .default("http://localhost:3000"),
+  GITHUB_CLIENT_ID: z.string().min(1, "GITHUB_CLIENT_ID is required"),
+  GITHUB_CLIENT_SECRET: z.string().min(1, "GITHUB_CLIENT_SECRET is required"),
+  ALLOWED_GITHUB_ID: z.string().min(1, "ALLOWED_GITHUB_ID is required"),
   ALLOWED_GITHUB_EMAIL: z.string().email().optional(),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
 
 const clientSchema = z.object({
-  NEXT_PUBLIC_CANONICAL_URL: z.string().url("NEXT_PUBLIC_CANONICAL_URL debe ser una URL válida").default("https://links.cristianarando.dev"),
+  NEXT_PUBLIC_CANONICAL_URL: z
+    .string()
+    .url("NEXT_PUBLIC_CANONICAL_URL must be a valid URL")
+    .default("https://links.cristianarando.dev"),
+  NEXT_PUBLIC_PORTFOLIO_URL: z
+    .string()
+    .url("NEXT_PUBLIC_PORTFOLIO_URL must be a valid URL")
+    .default("https://cristianarando.dev"),
   NEXT_PUBLIC_ASSET_PREFIX: z.string().optional(),
 });
 
@@ -25,12 +37,15 @@ function validateEnv(): ServerEnv & ClientEnv {
 
   const clientResult = clientSchema.safeParse({
     NEXT_PUBLIC_CANONICAL_URL: process.env.NEXT_PUBLIC_CANONICAL_URL,
+    NEXT_PUBLIC_PORTFOLIO_URL: process.env.NEXT_PUBLIC_PORTFOLIO_URL,
     NEXT_PUBLIC_ASSET_PREFIX: process.env.NEXT_PUBLIC_ASSET_PREFIX,
   });
 
   if (!clientResult.success) {
     const formatted = clientResult.error.format();
-    throw new Error(`[ENV] Variables de entorno cliente inválidas:\n${JSON.stringify(formatted, null, 2)}`);
+    throw new Error(
+      `[ENV] Invalid client environment variables:\n${JSON.stringify(formatted, null, 2)}`
+    );
   }
 
   if (isServer) {
@@ -48,13 +63,15 @@ function validateEnv(): ServerEnv & ClientEnv {
 
     if (!serverResult.success) {
       const formatted = serverResult.error.format();
-      throw new Error(`[ENV] Variables de entorno servidor inválidas:\n${JSON.stringify(formatted, null, 2)}`);
+      throw new Error(
+        `[ENV] Invalid server environment variables:\n${JSON.stringify(formatted, null, 2)}`
+      );
     }
 
     return { ...serverResult.data, ...clientResult.data };
   }
 
-  // En el cliente, no exponemos las credenciales de servidor
+  // On the client, never expose server credentials
   return {
     ...clientResult.data,
     TURSO_DATABASE_URL: "",
@@ -70,3 +87,11 @@ function validateEnv(): ServerEnv & ClientEnv {
 }
 
 export const env = validateEnv();
+
+export function getCanonicalUrl(): string {
+  return env.NEXT_PUBLIC_CANONICAL_URL.replace(/\/+$/, "");
+}
+
+export function getCanonicalHost(): string {
+  return getCanonicalUrl().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+}

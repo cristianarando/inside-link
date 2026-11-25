@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { getCanonicalHost } from "@/lib/env";
 import type { LinkDTO } from "@/lib/types/link-dto";
 
 type OgLink = Pick<
@@ -40,7 +41,7 @@ export function buildOgPresentation(link?: OgLink) {
   return {
     title: clip(link.title, 76),
     description: clip(
-      link.description || "Official link on links.cristianarando.dev.",
+      link.description || `Official link on ${getCanonicalHost()}.`,
       128,
     ),
     label: link.type === "HUB" ? "PROJECT HUB" : link.category.toUpperCase(),

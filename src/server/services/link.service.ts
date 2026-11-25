@@ -99,7 +99,7 @@ function zodDetails(error: z.ZodError): Record<string, string[]> {
 
 function asRecord(input: unknown): Record<string, unknown> {
   if (typeof input !== "object" || input === null || Array.isArray(input)) {
-    throw new LinkServiceError("VALIDATION_ERROR", "El cuerpo de la petición debe ser un objeto JSON");
+    throw new LinkServiceError("VALIDATION_ERROR", "Request body must be a JSON object");
   }
   return input as Record<string, unknown>;
 }
@@ -259,8 +259,8 @@ export function createLinkService(db: AppDatabase) {
   async function assertSlugFree(slug: string, excludeId?: string): Promise<void> {
     const existing = await findRowBySlug(slug);
     if (existing && existing.id !== excludeId) {
-      throw new LinkServiceError("SLUG_ALREADY_EXISTS", `El slug "${slug}" ya está en uso`, {
-        slug: [`El slug "${slug}" ya está en uso`],
+      throw new LinkServiceError("SLUG_ALREADY_EXISTS", `Slug "${slug}" is already in use`, {
+        slug: [`Slug "${slug}" is already in use`],
       });
     }
   }
@@ -282,7 +282,7 @@ export function createLinkService(db: AppDatabase) {
         available: false,
         normalizedSlug: result.normalized,
         reason: "TAKEN",
-        message: `El slug "${result.normalized}" ya está en uso`,
+        message: `Slug "${result.normalized}" is already in use`,
       };
     }
 
@@ -301,7 +301,7 @@ export function createLinkService(db: AppDatabase) {
     }
     throw new LinkServiceError(
       "SLUG_GENERATION_FAILED",
-      "No se pudo generar un slug aleatorio único tras varios intentos"
+      "Failed to generate a unique random slug after multiple attempts"
     );
   }
 
@@ -325,7 +325,7 @@ export function createLinkService(db: AppDatabase) {
       slug: slug ?? (input.slug == null || input.slug === "" ? undefined : input.slug),
     });
     if (!parsed.success) {
-      throw new LinkServiceError("VALIDATION_ERROR", "Datos de enlace inválidos", zodDetails(parsed.error));
+      throw new LinkServiceError("VALIDATION_ERROR", "Invalid link data", zodDetails(parsed.error));
     }
     const data = parsed.data;
     const ogMode = data.ogMode ?? (data.ogImageUrl ? "custom" : "auto");
@@ -365,43 +365,43 @@ export function createLinkService(db: AppDatabase) {
     } catch (err) {
       // Carrera entre la verificación y el INSERT: el índice UNIQUE es la barrera final.
       if (isUniqueSlugViolation(err)) {
-        throw new LinkServiceError("SLUG_ALREADY_EXISTS", `El slug "${finalSlug}" ya está en uso`, {
-          slug: [`El slug "${finalSlug}" ya está en uso`],
+        throw new LinkServiceError("SLUG_ALREADY_EXISTS", `Slug "${finalSlug}" is already in use`, {
+          slug: [`Slug "${finalSlug}" is already in use`],
         });
       }
       throw err;
     }
 
     const created = await findRowById(id);
-    if (!created) throw new Error("Invariante violada: el enlace recién creado no existe");
+    if (!created) throw new Error("Invariant violated: newly created link does not exist");
     return toLinkDTO(created);
   }
 
   async function updateLink(id: string, rawPatch: unknown): Promise<LinkDTO> {
     const existing = await findRowById(id);
-    if (!existing) throw new LinkServiceError("NOT_FOUND", "Enlace no encontrado");
+    if (!existing) throw new LinkServiceError("NOT_FOUND", "Link not found");
 
     const patch = asRecord(rawPatch);
 
     let newSlug: string | undefined;
     if (patch.slug !== undefined) {
       if (typeof patch.slug !== "string" || patch.slug.trim().length === 0) {
-        throw new LinkServiceError("VALIDATION_ERROR", "El slug no puede quedar vacío", {
-          slug: ["El slug no puede quedar vacío"],
+        throw new LinkServiceError("VALIDATION_ERROR", "Slug cannot be empty", {
+          slug: ["Slug cannot be empty"],
         });
       }
       newSlug = assertValidSlug(patch.slug);
       if (newSlug !== existing.slug) await assertSlugFree(newSlug, id);
     }
 
-    // El slug ya fue validado arriba; el resto se valida como parche parcial.
+    // Slug was already validated above; validate remaining fields as a partial patch.
     const parsed = BaseLinkSchema.partial().safeParse({ ...patch, slug: undefined });
     if (!parsed.success) {
-      throw new LinkServiceError("VALIDATION_ERROR", "Datos de enlace inválidos", zodDetails(parsed.error));
+      throw new LinkServiceError("VALIDATION_ERROR", "Invalid link data", zodDetails(parsed.error));
     }
     const data = parsed.data;
 
-    // Invariante polimórfica evaluada sobre el estado FINAL (existente + parche).
+    // Polymorphic invariant evaluated against the FINAL state (existing + patch).
     const finalType = data.type ?? existing.type;
     const finalDestination =
       data.destinationUrl !== undefined ? data.destinationUrl : existing.destinationUrl;
@@ -409,13 +409,13 @@ export function createLinkService(db: AppDatabase) {
       data.hubLinks !== undefined ? data.hubLinks : safeJsonArray(existing.hubLinksJson, HubLinksSchema);
 
     if (finalType === "DIRECT" && !finalDestination) {
-      throw new LinkServiceError("VALIDATION_ERROR", "La URL de destino es obligatoria para enlaces DIRECT", {
-        destinationUrl: ["La URL de destino es obligatoria para enlaces de tipo DIRECT"],
+      throw new LinkServiceError("VALIDATION_ERROR", "Destination URL is required for DIRECT links", {
+        destinationUrl: ["Destination URL is required for DIRECT links"],
       });
     }
     if (finalType === "HUB" && (!finalHubLinks || finalHubLinks.length === 0)) {
-      throw new LinkServiceError("VALIDATION_ERROR", "El modo HUB requiere al menos un sub-enlace", {
-        hubLinks: ["Debe incluir al menos un sub-enlace para el modo HUB"],
+      throw new LinkServiceError("VALIDATION_ERROR", "HUB mode requires at least one sub-link", {
+        hubLinks: ["HUB mode requires at least one sub-link"],
       });
     }
 
@@ -458,15 +458,15 @@ export function createLinkService(db: AppDatabase) {
       await db.update(links).set(updates).where(eq(links.id, id));
     } catch (err) {
       if (isUniqueSlugViolation(err)) {
-        throw new LinkServiceError("SLUG_ALREADY_EXISTS", `El slug "${newSlug}" ya está en uso`, {
-          slug: [`El slug "${newSlug}" ya está en uso`],
+        throw new LinkServiceError("SLUG_ALREADY_EXISTS", `Slug "${newSlug}" is already in use`, {
+          slug: [`Slug "${newSlug}" is already in use`],
         });
       }
       throw err;
     }
 
     const updated = await findRowById(id);
-    if (!updated) throw new LinkServiceError("NOT_FOUND", "Enlace no encontrado");
+    if (!updated) throw new LinkServiceError("NOT_FOUND", "Link not found");
     return toLinkDTO(updated);
   }
 
@@ -480,10 +480,10 @@ export function createLinkService(db: AppDatabase) {
 
   async function deleteLink(id: string): Promise<void> {
     const result = await db.delete(links).where(eq(links.id, id));
-    if (result.rowsAffected === 0) throw new LinkServiceError("NOT_FOUND", "Enlace no encontrado");
+    if (result.rowsAffected === 0) throw new LinkServiceError("NOT_FOUND", "Link not found");
   }
 
-  /** Consulta keyset sobre (is_pinned DESC, id DESC) compartida por /admin y /links. */
+  /** Keyset pagination query over (is_pinned DESC, id DESC) shared by /admin and /. */
   async function queryPage(params: ListLinksParams, scope: "admin" | "public") {
     const now = params.now ?? new Date();
     const nowMs = now.getTime();
@@ -492,8 +492,8 @@ export function createLinkService(db: AppDatabase) {
     if (params.limit !== undefined && params.limit !== null && params.limit !== "") {
       const parsedLimit = Number(params.limit);
       if (!Number.isFinite(parsedLimit)) {
-        throw new LinkServiceError("VALIDATION_ERROR", "El parámetro limit debe ser numérico", {
-          limit: ["Debe ser un número entre 1 y 50"],
+        throw new LinkServiceError("VALIDATION_ERROR", "The limit parameter must be numeric", {
+          limit: ["Must be a number between 1 and 50"],
         });
       }
       limit = Math.min(Math.max(Math.trunc(parsedLimit), 1), MAX_PAGE_SIZE);
@@ -504,8 +504,8 @@ export function createLinkService(db: AppDatabase) {
     if (params.cursor) {
       const cursor = decodeLinkCursor(params.cursor);
       if (!cursor) {
-        throw new LinkServiceError("VALIDATION_ERROR", "Cursor de paginación inválido", {
-          cursor: ["Cursor inválido o corrupto"],
+        throw new LinkServiceError("VALIDATION_ERROR", "Invalid pagination cursor", {
+          cursor: ["Invalid or corrupted cursor"],
         });
       }
       conditions.push(
@@ -516,8 +516,8 @@ export function createLinkService(db: AppDatabase) {
     if (params.category) {
       const category = LinkCategorySchema.safeParse(params.category);
       if (!category.success) {
-        throw new LinkServiceError("VALIDATION_ERROR", "Categoría inválida", {
-          category: ["Categoría no reconocida"],
+        throw new LinkServiceError("VALIDATION_ERROR", "Invalid category", {
+          category: ["Unrecognized category"],
         });
       }
       conditions.push(eq(links.category, category.data));
@@ -527,13 +527,13 @@ export function createLinkService(db: AppDatabase) {
     if (term) conditions.push(searchSql(term));
 
     if (scope === "public") {
-      // Aislamiento estricto (RF-019): se fuerza en el servidor, nunca depende del cliente.
+      // Strict isolation: enforced on the server, never dependent on client parameters.
       conditions.push(eq(links.isPublic, true), eq(links.isActive, true), notExpiredSql(nowMs));
     } else {
       const statusResult = LinkStatusFilterSchema.safeParse(params.status || "all");
       if (!statusResult.success) {
-        throw new LinkServiceError("VALIDATION_ERROR", "Filtro de estado inválido", {
-          status: ["Valores permitidos: all, active, inactive, expired, pinned"],
+        throw new LinkServiceError("VALIDATION_ERROR", "Invalid status filter", {
+          status: ["Allowed values: all, active, inactive, expired, pinned"],
         });
       }
       const status: LinkStatusFilter = statusResult.data;

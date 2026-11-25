@@ -30,7 +30,7 @@ export function handleLinkError(err: unknown): Response {
     {
       error: {
         code: "INTERNAL_ERROR",
-        message: "Error interno del servidor al procesar el enlace.",
+        message: "Internal server error while processing link.",
       },
     },
     { status: 500 }
@@ -83,7 +83,7 @@ export async function handleCreateLinkPost(
       {
         error: {
           code: "VALIDATION_ERROR",
-          message: "El cuerpo de la petición no es un JSON válido.",
+          message: "Request body is not valid JSON.",
         },
       },
       { status: 400 }

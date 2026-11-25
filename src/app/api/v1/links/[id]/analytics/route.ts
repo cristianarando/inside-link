@@ -26,7 +26,7 @@ export async function handleGetLinkAnalytics(
 
   if (!summary) {
     return NextResponse.json(
-      { error: { code: "NOT_FOUND", message: "Enlace no encontrado" } },
+      { error: { code: "NOT_FOUND", message: "Link not found" } },
       { status: 404 }
     );
   }
