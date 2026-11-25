@@ -2,20 +2,21 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link2Off } from "lucide-react";
-import { Button, Skeleton } from "@/components/ui/primitives";
-import { AdminToolbar } from "./admin-toolbar";
-import { AnalyticsDrawer } from "./analytics-drawer";
-import { LinkCard } from "./link-card";
-import { LinkFormModal } from "./link-form-modal";
-import { QrCodeModal } from "./qr-modal";
+import { Button, ConfirmDialog, Skeleton } from "@/components/ui/primitives";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
+import { getCanonicalHost } from "@/lib/env";
 import type {
   LinkCategory,
   LinkDTO,
   LinkStatusFilter,
   PaginatedResult,
 } from "@/lib/types/link-dto";
+import { AdminToolbar } from "./admin-toolbar";
+import { AnalyticsDrawer } from "./analytics-drawer";
+import { LinkCard } from "./link-card";
+import { LinkFormModal } from "./link-form-modal";
+import { QrCodeModal } from "./qr-modal";
 
 export function sortLinksByKeyset(items: LinkDTO[]): LinkDTO[] {
   return [...items].sort((a, b) => {
@@ -37,6 +38,7 @@ export function InfiniteLinkGrid({
   onOpenQr,
   onOpenAnalytics,
 }: InfiniteLinkGridProps) {
+  const canonicalHost = getCanonicalHost();
   const [items, setItems] = useState<LinkDTO[]>(initialPage.items);
   const [nextCursor, setNextCursor] = useState<string | null>(
     initialPage.nextCursor
@@ -46,22 +48,27 @@ export function InfiniteLinkGrid({
   );
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<LinkCategory | "all">(
-    "all"
-  );
-  const [selectedStatus, setSelectedStatus] = useState<LinkStatusFilter>("all");
+  const [selectedCategory, setSelectedCategory] = useState<
+    LinkCategory | "all"
+  >("all");
+  const [selectedStatus, setSelectedStatus] =
+    useState<LinkStatusFilter>("all");
 
   const [isInitialLoading, setIsInitialLoading] = useState(false);
   const [isFetchingNextPage, setIsFetchingNextPage] = useState(false);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingLink, setEditingLink] = useState<LinkDTO | null>(null);
+  const [duplicatingLink, setDuplicatingLink] = useState<LinkDTO | null>(null);
+  const [linkToDelete, setLinkToDelete] = useState<LinkDTO | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [qrLink, setQrLink] = useState<LinkDTO | null>(null);
   const [analyticsLink, setAnalyticsLink] = useState<LinkDTO | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const debouncedQuery = useDebouncedValue(searchQuery, 300);
   const isFirstRenderRef = useRef(true);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
@@ -69,6 +76,38 @@ export function InfiniteLinkGrid({
       setToastMessage((curr) => (curr === msg ? null : curr));
     }, 2600);
   }, []);
+
+  // Keyboard shortcuts: `/` focuses search, `N` opens New Link modal
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (modalOpen || qrLink || analyticsLink || linkToDelete) return;
+
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      if (
+        tag === "input" ||
+        tag === "textarea" ||
+        tag === "select" ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+
+      if (e.key === "/") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      } else if (e.key === "n" || e.key === "N") {
+        e.preventDefault();
+        setEditingLink(null);
+        setDuplicatingLink(null);
+        setModalOpen(true);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [modalOpen, qrLink, analyticsLink, linkToDelete]);
 
   const buildQueryUrl = useCallback(
     (cursor?: string | null) => {
@@ -192,21 +231,29 @@ export function InfiniteLinkGrid({
     }
   };
 
-  const handleDelete = async (link: LinkDTO) => {
+  const handleConfirmDelete = async () => {
+    if (!linkToDelete) return;
+    const target = linkToDelete;
     const previous = items;
-    setItems((prev) => prev.filter((item) => item.id !== link.id));
+    setIsDeleting(true);
+    setItems((prev) => prev.filter((item) => item.id !== target.id));
 
     try {
-      const res = await fetch(`/api/v1/links/${link.id}`, {
+      const res = await fetch(`/api/v1/links/${target.id}`, {
         method: "DELETE",
       });
       if (res.ok) {
-        showToast(`Link /${link.slug} deleted`);
+        showToast(`Link /${target.slug} deleted`);
       } else {
         setItems(previous);
+        showToast(`Could not delete /${target.slug}`);
       }
     } catch {
       setItems(previous);
+      showToast(`Network error while deleting /${target.slug}`);
+    } finally {
+      setIsDeleting(false);
+      setLinkToDelete(null);
     }
   };
 
@@ -220,7 +267,7 @@ export function InfiniteLinkGrid({
       showToast(`Changes saved to /${saved.slug}`);
     } else {
       setItems((prev) => sortLinksByKeyset([saved, ...prev]));
-      showToast(`Link created: links.cristianarando.dev/${saved.slug}`);
+      showToast(`Link created: ${canonicalHost}/${saved.slug}`);
     }
   };
 
@@ -230,7 +277,7 @@ export function InfiniteLinkGrid({
         <div
           role="status"
           aria-live="polite"
-          className="fixed bottom-5 right-5 z-40 rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-xs font-medium text-white shadow-xl"
+          className="fixed bottom-5 right-5 z-40 rounded-xl border border-emerald-500/30 bg-[#111114]/95 px-4 py-2.5 text-xs font-medium text-emerald-200 shadow-xl backdrop-blur-md"
         >
           {toastMessage}
         </div>
@@ -243,8 +290,10 @@ export function InfiniteLinkGrid({
         onCategoryChange={setSelectedCategory}
         selectedStatus={selectedStatus}
         onStatusChange={setSelectedStatus}
+        searchInputRef={searchInputRef}
         onCreateClick={() => {
           setEditingLink(null);
+          setDuplicatingLink(null);
           setModalOpen(true);
         }}
         totalLoadedCount={items.length}
@@ -257,7 +306,7 @@ export function InfiniteLinkGrid({
           ))}
         </div>
       ) : items.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-zinc-800/80 bg-zinc-900/30 p-12 text-center">
+        <div className="obsidian-surface flex flex-col items-center justify-center rounded-2xl border border-zinc-800/80 p-12 text-center">
           <Link2Off className="h-8 w-8 text-zinc-500" />
           <h3 className="mt-3 text-base font-medium text-white">
             No links found
@@ -269,6 +318,7 @@ export function InfiniteLinkGrid({
             className="mt-4"
             onClick={() => {
               setEditingLink(null);
+              setDuplicatingLink(null);
               setModalOpen(true);
             }}
           >
@@ -284,9 +334,15 @@ export function InfiniteLinkGrid({
                 link={link}
                 onEdit={(target) => {
                   setEditingLink(target);
+                  setDuplicatingLink(null);
                   setModalOpen(true);
                 }}
-                onDelete={handleDelete}
+                onDuplicate={(target) => {
+                  setEditingLink(null);
+                  setDuplicatingLink(target);
+                  setModalOpen(true);
+                }}
+                onDelete={(target) => setLinkToDelete(target)}
                 onToggleFlags={handleToggleFlags}
                 onOpenQr={(target) => {
                   setQrLink(target);
@@ -318,8 +374,28 @@ export function InfiniteLinkGrid({
       <LinkFormModal
         open={modalOpen}
         initialLink={editingLink}
-        onClose={() => setModalOpen(false)}
+        duplicateFrom={duplicatingLink}
+        onClose={() => {
+          setModalOpen(false);
+          setDuplicatingLink(null);
+        }}
         onSaved={handleSaved}
+      />
+
+      <ConfirmDialog
+        open={linkToDelete !== null}
+        onClose={() => setLinkToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title={linkToDelete ? `Delete /${linkToDelete.slug}?` : "Delete link"}
+        description={
+          linkToDelete
+            ? `This will permanently delete "${linkToDelete.title}" (/${linkToDelete.slug}) and all recorded click telemetry. This action cannot be undone.`
+            : ""
+        }
+        confirmLabel="Delete link"
+        cancelLabel="Cancel"
+        danger
+        loading={isDeleting}
       />
 
       <QrCodeModal

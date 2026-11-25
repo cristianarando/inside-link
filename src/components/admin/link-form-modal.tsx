@@ -5,20 +5,34 @@ import {
   AlertCircle,
   CheckCircle2,
   Loader2,
-  Plus,
   Sparkles,
-  Trash2,
+  Wand2,
 } from "lucide-react";
-import { Button, DialogModal, Input, Switch } from "@/components/ui/primitives";
-import { IconPicker } from "./icon-picker";
+import {
+  Button,
+  DialogModal,
+  Input,
+  Switch,
+} from "@/components/ui/primitives";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { classifySlug, normalizeSlug } from "@/lib/validations/slug.schema";
+import { getCanonicalHost } from "@/lib/env";
+import type {
+  LinkCategory,
+  LinkDTO,
+  LinkType,
+  OgMode,
+  SlugAvailability,
+} from "@/lib/types/link-dto";
 import type { HubLinkItem } from "@/lib/validations/link.schema";
-import type { LinkCategory, LinkDTO, LinkType, OgMode, SlugAvailability } from "@/lib/types/link-dto";
+import { classifySlug, normalizeSlug } from "@/lib/validations/slug.schema";
+import type { MetadataPreviewResult } from "@/server/services/metadata.service";
+import { HubLinksEditor } from "./hub-links-editor";
+import { IconPicker } from "./icon-picker";
 
 export interface LinkFormModalProps {
   open: boolean;
   initialLink?: LinkDTO | null;
+  duplicateFrom?: LinkDTO | null;
   onClose: () => void;
   onSaved: (saved: LinkDTO, isEdit: boolean) => void;
 }
@@ -43,10 +57,13 @@ const DEFAULT_HUB_ITEMS: HubLinkItem[] = [
 export function LinkFormModal({
   open,
   initialLink,
+  duplicateFrom,
   onClose,
   onSaved,
 }: LinkFormModalProps) {
   const isEdit = Boolean(initialLink);
+  const sourceLink = initialLink ?? duplicateFrom ?? null;
+  const canonicalHost = getCanonicalHost();
 
   const [slugInput, setSlugInput] = useState("");
   const [title, setTitle] = useState("");
@@ -72,6 +89,12 @@ export function LinkFormModal({
   const [previewError, setPreviewError] = useState("");
   const [isPreviewing, setIsPreviewing] = useState(false);
 
+  const [isMagicFilling, setIsMagicFilling] = useState(false);
+  const [magicFillMessage, setMagicFillMessage] = useState<{
+    kind: "success" | "error";
+    text: string;
+  } | null>(null);
+
   const [slugStatus, setSlugStatus] = useState<
     | { state: "idle" }
     | { state: "checking"; normalized: string }
@@ -89,34 +112,43 @@ export function LinkFormModal({
     setSubmitError(null);
     setClearExistingPin(false);
     setPinInput("");
+    setMagicFillMessage(null);
 
-    if (initialLink) {
-      setSlugInput(initialLink.slug);
-      setTitle(initialLink.title);
-      setDescription(initialLink.description ?? "");
-      setType(initialLink.type);
-      setDestinationUrl(initialLink.destinationUrl ?? "");
-      setRedirectStatus(initialLink.redirectStatus === 301 ? 301 : 307);
-      setForwardQueryParams(initialLink.forwardQueryParams);
+    if (sourceLink) {
+      const isDuplicate = !initialLink && Boolean(duplicateFrom);
+      setSlugInput(isDuplicate ? `${sourceLink.slug}-copy` : sourceLink.slug);
+      setTitle(isDuplicate ? `${sourceLink.title} (Copy)` : sourceLink.title);
+      setDescription(sourceLink.description ?? "");
+      setType(sourceLink.type);
+      setDestinationUrl(sourceLink.destinationUrl ?? "");
+      setRedirectStatus(sourceLink.redirectStatus === 301 ? 301 : 307);
+      setForwardQueryParams(sourceLink.forwardQueryParams);
       setHubLinks(
-        initialLink.hubLinks && initialLink.hubLinks.length > 0
-          ? initialLink.hubLinks
+        sourceLink.hubLinks && sourceLink.hubLinks.length > 0
+          ? sourceLink.hubLinks.map((item, idx) => ({
+              ...item,
+              id: isDuplicate
+                ? `hub-${idx + 1}-${Date.now().toString(36)}`
+                : item.id,
+            }))
           : DEFAULT_HUB_ITEMS
       );
-      setCategory(initialLink.category);
-      setTagsText(initialLink.tags.join(", "));
-      setIcon(initialLink.icon);
-      setIsActive(initialLink.isActive);
-      setIsPublic(initialLink.isPublic);
-      setIsPinned(initialLink.isPinned);
+      setCategory(sourceLink.category);
+      setTagsText(sourceLink.tags.join(", "));
+      setIcon(sourceLink.icon);
+      setIsActive(sourceLink.isActive);
+      setIsPublic(sourceLink.isPublic);
+      setIsPinned(isDuplicate ? false : sourceLink.isPinned);
       setExpiresAtInput(
-        initialLink.expiresAt ? initialLink.expiresAt.slice(0, 16) : ""
+        sourceLink.expiresAt ? sourceLink.expiresAt.slice(0, 16) : ""
       );
       setMaxClicksInput(
-        initialLink.maxClicks !== null ? String(initialLink.maxClicks) : ""
+        sourceLink.maxClicks !== null ? String(sourceLink.maxClicks) : ""
       );
-      setOgMode(initialLink.ogMode ?? (initialLink.ogImageUrl ? "custom" : "auto"));
-      setOgImageUrl(initialLink.ogImageUrl ?? "");
+      setOgMode(
+        sourceLink.ogMode ?? (sourceLink.ogImageUrl ? "custom" : "auto")
+      );
+      setOgImageUrl(sourceLink.ogImageUrl ?? "");
     } else {
       setSlugInput("");
       setTitle("");
@@ -137,7 +169,7 @@ export function LinkFormModal({
       setMaxClicksInput("");
       setOgImageUrl("");
     }
-  }, [open, initialLink]);
+  }, [open, initialLink, duplicateFrom, sourceLink]);
 
   const debouncedSlug = useDebouncedValue(slugInput, 250);
 
@@ -218,32 +250,57 @@ export function LinkFormModal({
     }
   };
 
-  const handleAddHubItem = () => {
-    if (hubLinks.length >= 12) return;
-    setHubLinks((prev) => [
-      ...prev,
-      {
-        id: `item-${Date.now().toString(36)}`,
-        label: "",
-        url: "",
-        icon: "external-link",
-        variant: "secondary",
-      },
-    ]);
-  };
+  const handleMagicFill = async () => {
+    const trimmedUrl = destinationUrl.trim();
+    if (!trimmedUrl) {
+      setMagicFillMessage({
+        kind: "error",
+        text: "Enter a destination URL first.",
+      });
+      return;
+    }
 
-  const handleUpdateHubItem = (
-    index: number,
-    patch: Partial<HubLinkItem>
-  ) => {
-    setHubLinks((prev) =>
-      prev.map((item, idx) => (idx === index ? { ...item, ...patch } : item))
-    );
-  };
+    setIsMagicFilling(true);
+    setMagicFillMessage(null);
 
-  const handleRemoveHubItem = (index: number) => {
-    if (hubLinks.length <= 1) return;
-    setHubLinks((prev) => prev.filter((_, idx) => idx !== index));
+    try {
+      const res = await fetch("/api/v1/links/metadata-preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: trimmedUrl }),
+      });
+
+      const body = (await res.json()) as {
+        data?: MetadataPreviewResult;
+        error?: { message?: string };
+      };
+
+      if (!res.ok || !body.data) {
+        setMagicFillMessage({
+          kind: "error",
+          text:
+            body.error?.message || "Could not fetch metadata from target URL.",
+        });
+        return;
+      }
+
+      const meta = body.data;
+      if (meta.title) setTitle(meta.title);
+      if (meta.description) setDescription(meta.description);
+      if (meta.icon) setIcon(meta.icon);
+
+      setMagicFillMessage({
+        kind: "success",
+        text: "Metadata auto-filled from destination URL.",
+      });
+    } catch {
+      setMagicFillMessage({
+        kind: "error",
+        text: "Network error while fetching metadata.",
+      });
+    } finally {
+      setIsMagicFilling(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -277,13 +334,15 @@ export function LinkFormModal({
         isPinned,
         ogMode,
         ogImageUrl: ogMode === "custom" ? ogImageUrl.trim() || null : null,
-        expiresAt: expiresAtInput ? new Date(expiresAtInput).toISOString() : null,
+        expiresAt: expiresAtInput
+          ? new Date(expiresAtInput).toISOString()
+          : null,
         maxClicks: maxClicksInput.trim() ? Number(maxClicksInput) : null,
       };
 
       if (pinInput.trim()) {
         payload.pin = pinInput.trim();
-      } else if (clearExistingPin) {
+      } else if (clearExistingPin && isEdit) {
         payload.pin = null;
       }
 
@@ -301,7 +360,8 @@ export function LinkFormModal({
       const body = await res.json();
       if (!res.ok) {
         setSubmitError(
-          body?.error?.message || "Could not save the link. Please check the fields."
+          body?.error?.message ||
+            "Could not save the link. Please check the fields."
         );
         setIsSubmitting(false);
         return;
@@ -316,17 +376,23 @@ export function LinkFormModal({
     }
   };
 
+  const modalTitle = isEdit
+    ? `Edit /${initialLink?.slug}`
+    : duplicateFrom
+      ? `Duplicate /${duplicateFrom.slug}`
+      : "Create New Short Link";
+
   return (
     <DialogModal
       open={open}
       onClose={onClose}
-      title={isEdit ? `Edit /${initialLink?.slug}` : "Create New Short Link"}
-      description="Configure a direct redirect or a project HUB micro-landing for links.cristianarando.dev."
+      title={modalTitle}
+      description={`Configure a direct redirect or a project HUB micro-landing for ${canonicalHost}.`}
       maxWidthClass="max-w-2xl"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         {submitError && (
-          <div className="flex items-start gap-2 rounded-xl border border-red-900/60 bg-red-950/40 p-3 text-xs text-red-300">
+          <div className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-950/40 p-3 text-xs text-red-300">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
             <span>{submitError}</span>
           </div>
@@ -343,15 +409,15 @@ export function LinkFormModal({
             <button
               type="button"
               onClick={handleGenerateRandomSlug}
-              className="inline-flex cursor-pointer items-center gap-1 text-xs text-zinc-400 hover:text-white"
+              className="inline-flex cursor-pointer items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 rounded"
             >
               <Sparkles className="h-3 w-3" />
               Autogenerate (6 chars)
             </button>
           </div>
-          <div className="mt-1.5 flex items-center rounded-xl border border-zinc-800 bg-zinc-900/80 px-3">
+          <div className="mt-1.5 flex items-center rounded-xl border border-zinc-800 bg-[#111114] px-3 focus-within:border-emerald-500/60 focus-within:ring-2 focus-within:ring-emerald-500/30">
             <span className="select-none font-mono text-xs text-zinc-500">
-              links.cristianarando.dev/
+              {canonicalHost}/
             </span>
             <input
               type="text"
@@ -374,7 +440,7 @@ export function LinkFormModal({
               <CheckCircle2 className="h-3.5 w-3.5" />
               Available:{" "}
               <code className="font-mono">
-                links.cristianarando.dev/{slugStatus.normalized}
+                {canonicalHost}/{slugStatus.normalized}
               </code>
             </p>
           )}
@@ -404,7 +470,7 @@ export function LinkFormModal({
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value as LinkCategory)}
-              className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:border-zinc-600 focus:outline-none"
+              className="mt-1 w-full rounded-xl border border-zinc-800 bg-[#111114] px-3 py-2 text-sm text-zinc-100 focus:border-emerald-500/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
             >
               <option value="project">Projects</option>
               <option value="social">Social</option>
@@ -423,13 +489,15 @@ export function LinkFormModal({
             <button
               type="button"
               onClick={() => setType("DIRECT")}
-              className={`cursor-pointer rounded-xl border p-3 text-left transition ${
+              className={`cursor-pointer rounded-xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 ${
                 type === "DIRECT"
-                  ? "border-white bg-zinc-900 text-white"
-                  : "border-zinc-800 bg-zinc-900/40 text-zinc-400 hover:border-zinc-700"
+                  ? "border-emerald-500/50 bg-emerald-500/10 text-white"
+                  : "border-zinc-800 bg-[#111114]/60 text-zinc-400 hover:border-zinc-700"
               }`}
             >
-              <div className="text-xs font-semibold">Direct Redirect (307/301)</div>
+              <div className="text-xs font-semibold">
+                Direct Redirect (307/301)
+              </div>
               <div className="mt-0.5 text-[11px] text-zinc-400">
                 Redirects in &lt;50ms straight to the destination URL.
               </div>
@@ -437,34 +505,67 @@ export function LinkFormModal({
             <button
               type="button"
               onClick={() => setType("HUB")}
-              className={`cursor-pointer rounded-xl border p-3 text-left transition ${
+              className={`cursor-pointer rounded-xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 ${
                 type === "HUB"
-                  ? "border-white bg-zinc-900 text-white"
-                  : "border-zinc-800 bg-zinc-900/40 text-zinc-400 hover:border-zinc-700"
+                  ? "border-emerald-500/50 bg-emerald-500/10 text-white"
+                  : "border-zinc-800 bg-[#111114]/60 text-zinc-400 hover:border-zinc-700"
               }`}
             >
-              <div className="text-xs font-semibold">Project Micro-Landing (HUB)</div>
+              <div className="text-xs font-semibold">
+                Project Micro-Landing (HUB)
+              </div>
               <div className="mt-0.5 text-[11px] text-zinc-400">
-                Displays a project card with multiple action buttons (GitHub, Demo, Docs).
+                Displays a project card with multiple action buttons (GitHub,
+                Demo, Docs).
               </div>
             </button>
           </div>
         </div>
 
         {type === "DIRECT" ? (
-          <div className="space-y-3 rounded-xl border border-zinc-800/80 bg-zinc-900/40 p-3.5">
+          <div className="space-y-3 rounded-xl border border-zinc-800/80 bg-[#111114]/60 p-3.5">
             <div>
               <label className="text-xs font-medium text-zinc-300">
                 Destination URL *
               </label>
-              <Input
-                required
-                type="url"
-                value={destinationUrl}
-                onChange={(e) => setDestinationUrl(e.target.value)}
-                placeholder="https://github.com/cristianarando/..."
-                className="mt-1 font-mono text-xs"
-              />
+              <div className="mt-1 flex flex-col gap-2 sm:flex-row">
+                <Input
+                  required
+                  type="url"
+                  value={destinationUrl}
+                  onChange={(e) => setDestinationUrl(e.target.value)}
+                  placeholder="https://github.com/cristianarando/..."
+                  className="flex-1 font-mono text-xs"
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleMagicFill}
+                  disabled={isMagicFilling || !destinationUrl.trim()}
+                  title="Auto-fill title, description, and icon from URL metadata"
+                  className="shrink-0 py-2"
+                >
+                  {isMagicFilling ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-400" />
+                  ) : (
+                    <Wand2 className="h-3.5 w-3.5 text-emerald-400" />
+                  )}
+                  Magic Fill
+                </Button>
+              </div>
+              {magicFillMessage && (
+                <p
+                  role="status"
+                  className={`mt-1.5 text-[11px] ${
+                    magicFillMessage.kind === "success"
+                      ? "text-emerald-400"
+                      : "text-red-400"
+                  }`}
+                >
+                  {magicFillMessage.text}
+                </p>
+              )}
             </div>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
@@ -474,7 +575,7 @@ export function LinkFormModal({
                   onChange={(e) =>
                     setRedirectStatus(Number(e.target.value) as 307 | 301)
                   }
-                  className="rounded-lg border border-zinc-800 bg-zinc-900 px-2.5 py-1 text-xs text-zinc-200"
+                  className="rounded-lg border border-zinc-800 bg-[#111114] px-2.5 py-1 text-xs text-zinc-200 focus:border-emerald-500/60 focus:outline-none"
                 >
                   <option value={307}>307 Temporary (Recommended)</option>
                   <option value={301}>301 Permanent (High cache)</option>
@@ -491,74 +592,7 @@ export function LinkFormModal({
             </div>
           </div>
         ) : (
-          <div className="space-y-2.5 rounded-xl border border-zinc-800/80 bg-zinc-900/40 p-3.5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-zinc-300">
-                Project Buttons ({hubLinks.length}/12)
-              </span>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleAddHubItem}
-                disabled={hubLinks.length >= 12}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Add button
-              </Button>
-            </div>
-            <div className="space-y-2">
-              {hubLinks.map((item, idx) => (
-                <div
-                  key={item.id}
-                  className="grid grid-cols-1 gap-2 rounded-lg border border-zinc-800 bg-zinc-950/60 p-2.5 sm:grid-cols-12"
-                >
-                  <Input
-                    required
-                    value={item.label}
-                    onChange={(e) =>
-                      handleUpdateHubItem(idx, { label: e.target.value })
-                    }
-                    placeholder="Label (e.g. View GitHub)"
-                    className="text-xs sm:col-span-4"
-                  />
-                  <Input
-                    required
-                    type="url"
-                    value={item.url}
-                    onChange={(e) =>
-                      handleUpdateHubItem(idx, { url: e.target.value })
-                    }
-                    placeholder="https://..."
-                    className="font-mono text-xs sm:col-span-6"
-                  />
-                  <div className="flex items-center justify-end gap-1 sm:col-span-2">
-                    <select
-                      value={item.variant}
-                      onChange={(e) =>
-                        handleUpdateHubItem(idx, {
-                          variant: e.target.value as HubLinkItem["variant"],
-                        })
-                      }
-                      className="rounded-lg border border-zinc-800 bg-zinc-900 px-1.5 py-1.5 text-[11px] text-zinc-300"
-                    >
-                      <option value="primary">Primary</option>
-                      <option value="secondary">Secondary</option>
-                      <option value="outline">Outline</option>
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveHubItem(idx)}
-                      disabled={hubLinks.length <= 1}
-                      aria-label="Remove button"
-                      className="cursor-pointer rounded-lg p-1.5 text-zinc-500 hover:bg-red-950/50 hover:text-red-300 disabled:opacity-30"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <HubLinksEditor items={hubLinks} onChange={setHubLinks} />
         )}
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -586,18 +620,75 @@ export function LinkFormModal({
           </div>
         </div>
 
-        <fieldset className="space-y-2">
-          <legend className="text-xs font-medium text-zinc-300">Social preview</legend>
-          <select
-            aria-label="Social preview mode"
-            className="rounded-lg border border-zinc-700 bg-zinc-900 p-2 text-xs text-zinc-200"
-            value={ogMode}
-            onChange={(event) => setOgMode(event.target.value as OgMode)}
-          >
-            <option value="auto">Automatic</option>
-            <option value="custom">Custom image</option>
-            <option value="minimal">Generic card</option>
-          </select>
+        <fieldset className="space-y-2 rounded-xl border border-zinc-800/80 bg-[#111114]/40 p-3.5">
+          <legend className="px-1 text-xs font-medium text-zinc-300">
+            Social Preview
+          </legend>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              aria-label="Social preview mode"
+              className="rounded-lg border border-zinc-800 bg-[#111114] p-2 text-xs text-zinc-200 focus:border-emerald-500/60 focus:outline-none"
+              value={ogMode}
+              onChange={(event) => setOgMode(event.target.value as OgMode)}
+            >
+              <option value="auto">Automatic</option>
+              <option value="custom">Custom image</option>
+              <option value="minimal">Generic card</option>
+            </select>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isPreviewing || !title.trim()}
+              onClick={async () => {
+                setIsPreviewing(true);
+                setPreviewError("");
+                setPreviewUrl("");
+                try {
+                  const hasPin = Boolean(
+                    pinInput || (initialLink?.hasPin && !clearExistingPin)
+                  );
+                  const response = await fetch("/api/v1/og/preview", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      title,
+                      description,
+                      slug: normalizeSlug(slugInput),
+                      category,
+                      type,
+                      ogMode,
+                      hasPin,
+                    }),
+                  });
+                  if (
+                    !response.ok ||
+                    !response.headers
+                      .get("content-type")
+                      ?.startsWith("image/png")
+                  ) {
+                    throw new Error("Preview unavailable");
+                  }
+                  const png = await response.blob();
+                  const dataUrl = await new Promise<string>(
+                    (resolve, reject) => {
+                      const reader = new FileReader();
+                      reader.onload = () => resolve(String(reader.result));
+                      reader.onerror = () => reject(reader.error);
+                      reader.readAsDataURL(png);
+                    }
+                  );
+                  setPreviewUrl(dataUrl);
+                } catch {
+                  setPreviewError("Could not load the generated preview.");
+                } finally {
+                  setIsPreviewing(false);
+                }
+              }}
+            >
+              {isPreviewing ? "Generating..." : "Preview generated card"}
+            </Button>
+          </div>
           {ogMode === "custom" && (
             <Input
               type="url"
@@ -608,46 +699,21 @@ export function LinkFormModal({
               required
             />
           )}
-          <button
-            type="button"
-            className="block rounded border border-zinc-700 px-3 py-1.5 text-xs text-zinc-200 disabled:opacity-50"
-            disabled={isPreviewing || !title.trim()}
-            onClick={async () => {
-              setIsPreviewing(true);
-              setPreviewError("");
-              setPreviewUrl("");
-              try {
-                const hasPin = Boolean(pinInput || (initialLink?.hasPin && !clearExistingPin));
-                const response = await fetch("/api/v1/og/preview", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ title, description, slug: normalizeSlug(slugInput), category, type, ogMode, hasPin }),
-                });
-                if (!response.ok || !response.headers.get("content-type")?.startsWith("image/png")) {
-                  throw new Error("Preview unavailable");
-                }
-                const png = await response.blob();
-                const dataUrl = await new Promise<string>((resolve, reject) => {
-                  const reader = new FileReader();
-                  reader.onload = () => resolve(String(reader.result));
-                  reader.onerror = () => reject(reader.error);
-                  reader.readAsDataURL(png);
-                });
-                setPreviewUrl(dataUrl);
-              } catch {
-                setPreviewError("Could not load the generated preview.");
-              } finally {
-                setIsPreviewing(false);
-              }
-            }}
-          >
-            {isPreviewing ? "Generating…" : "Preview generated card"}
-          </button>
-          {previewUrl && <img src={previewUrl} alt="Generated social card preview" className="w-full rounded-lg" />}
-          {previewError && <p role="status" className="text-xs text-red-300">{previewError}</p>}
-          <p className="text-xs text-zinc-400">
-            Social previews can show the title and description of unlisted links. PIN-protected
-            links use a generic protected card.
+          {previewUrl && (
+            <img
+              src={previewUrl}
+              alt="Generated social card preview"
+              className="w-full rounded-lg border border-zinc-800"
+            />
+          )}
+          {previewError && (
+            <p role="status" className="text-xs text-red-300">
+              {previewError}
+            </p>
+          )}
+          <p className="text-[11px] text-zinc-500">
+            Social previews can show the title and description of unlisted
+            links. PIN-protected links use a generic protected card.
           </p>
         </fieldset>
 
@@ -658,7 +724,7 @@ export function LinkFormModal({
           <IconPicker value={icon} onChange={setIcon} />
         </div>
 
-        <div className="grid grid-cols-1 gap-2 rounded-xl border border-zinc-800/80 bg-zinc-900/40 p-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-2 rounded-xl border border-zinc-800/80 bg-[#111114]/60 p-3 sm:grid-cols-3">
           <label className="flex items-center justify-between gap-2 text-xs text-zinc-300">
             <span>Active Link</span>
             <Switch
@@ -668,7 +734,7 @@ export function LinkFormModal({
             />
           </label>
           <label className="flex items-center justify-between gap-2 text-xs text-zinc-300">
-            <span>Public on /links</span>
+            <span>Public Directory (/)</span>
             <Switch
               checked={isPublic}
               onCheckedChange={setIsPublic}
