@@ -1,13 +1,17 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { Download } from "lucide-react";
+import { Button, DialogModal, Skeleton } from "@/components/ui/primitives";
 import type { LinkDTO } from "@/lib/types/link-dto";
 import type {
   AnalyticsRange,
   AnalyticsSummaryDTO,
 } from "@/server/services/analytics.service";
-import { DialogModal, Skeleton } from "@/components/ui/primitives";
-import { AnalyticsOverviewGrid } from "./charts/analytics-charts";
+import {
+  AnalyticsOverviewGrid,
+  exportAnalyticsSummaryCsv,
+} from "./charts/analytics-charts";
 
 export interface AnalyticsDrawerProps {
   open: boolean;
@@ -31,9 +35,12 @@ export function AnalyticsDrawer({ open, link, onClose }: AnalyticsDrawerProps) {
     const controller = new AbortController();
     setLoading(true);
 
-    fetch(`/api/v1/links/${encodeURIComponent(link.id)}/analytics?range=${range}`, {
-      signal: controller.signal,
-    })
+    fetch(
+      `/api/v1/links/${encodeURIComponent(link.id)}/analytics?range=${range}`,
+      {
+        signal: controller.signal,
+      }
+    )
       .then(async (res) => {
         if (!res.ok) return;
         const json = (await res.json()) as { data: AnalyticsSummaryDTO };
@@ -61,31 +68,49 @@ export function AnalyticsDrawer({ open, link, onClose }: AnalyticsDrawerProps) {
     >
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="font-mono text-xs text-zinc-400">
+          <span className="truncate font-mono text-xs text-zinc-400">
             {link.shortUrl}
           </span>
-          <div className="inline-flex rounded-xl border border-zinc-800 bg-zinc-950 p-1">
-            {RANGES.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setRange(opt.value)}
-                className={`rounded-lg px-3 py-1 text-xs font-medium transition ${
-                  range === opt.value
-                    ? "bg-zinc-100 text-zinc-950"
-                    : "text-zinc-400 hover:text-zinc-200"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-xl border border-zinc-800 bg-[#09090b] p-1">
+              {RANGES.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setRange(opt.value)}
+                  className={`cursor-pointer rounded-lg px-3 py-1 text-xs font-medium transition ${
+                    range === opt.value
+                      ? "bg-emerald-500 font-semibold text-zinc-950"
+                      : "text-zinc-400 hover:text-zinc-200"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={loading || !summary}
+              onClick={() => {
+                if (summary) {
+                  exportAnalyticsSummaryCsv(summary, `analytics-${link.slug}`);
+                }
+              }}
+            >
+              <Download className="h-3.5 w-3.5 text-emerald-400" />
+              Export CSV
+            </Button>
           </div>
         </div>
 
         {loading || !summary ? (
           <div className="space-y-3">
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-40 w-full" />
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-44 w-full" />
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <Skeleton className="h-36 w-full" />
               <Skeleton className="h-36 w-full" />
