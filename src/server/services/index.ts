@@ -10,3 +10,4 @@ export const analyticsService = createAnalyticsService(db);
 export * from "./link.service";
 export * from "./resolution.service";
 export * from "./analytics.service";
+export * from "./metadata.service";
