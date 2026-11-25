@@ -2,6 +2,15 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   assetPrefix: process.env.NEXT_PUBLIC_ASSET_PREFIX || undefined,
+  async redirects() {
+    return [
+      {
+        source: "/links",
+        destination: "/",
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       {

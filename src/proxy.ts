@@ -6,11 +6,14 @@ export function isTechnicalPreviewHost(hostHeader: string | null): boolean {
   return cleanHost.endsWith(".vercel.app");
 }
 
-export function middleware(request: NextRequest): NextResponse {
+export function proxy(request: NextRequest): NextResponse {
   const response = NextResponse.next();
   const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
 
-  // Evitar indexación duplicada del dominio técnico *.vercel.app
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+
+  // Prevent duplicate indexing of technical *.vercel.app preview deployments.
   if (isTechnicalPreviewHost(host)) {
     response.headers.set("X-Robots-Tag", "noindex, nofollow");
   }

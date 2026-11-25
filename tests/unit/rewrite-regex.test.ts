@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isReservedSlug } from "../../src/lib/constants/reserved-slugs";
-import { isTechnicalPreviewHost } from "../../src/middleware";
+import { isTechnicalPreviewHost } from "../../src/proxy";
 
 describe("Standalone Subdomain Deployment (links.cristianarando.dev)", () => {
   it("allows former portfolio slugs to be shortened on links.cristianarando.dev while keeping system routes reserved", () => {

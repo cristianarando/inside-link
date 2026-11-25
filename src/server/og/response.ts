@@ -54,9 +54,10 @@ export async function handleOgGet(
     if (ogRevision(card) !== revision) return notFound();
     const etag = `W/"${revision}"`;
     const headers = {
-      ...noStore,
       "Cache-Control": "public, max-age=0, must-revalidate",
+      "CDN-Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
       ETag: etag,
+      "X-Content-Type-Options": "nosniff",
     };
     const validators = request.headers
       .get("if-none-match")
