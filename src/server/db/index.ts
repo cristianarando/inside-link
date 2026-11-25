@@ -8,6 +8,21 @@ if (fs.existsSync(".env")) {
 }
 
 let globalClient: Client | null = null;
+let foreignKeysInitPromise: Promise<unknown> | null = null;
+
+/**
+ * Enables SQLite foreign key enforcement for local `file:` databases so
+ * `ON DELETE CASCADE` triggers consistently outside Turso Cloud.
+ */
+export function ensureLocalForeignKeys(client: Client, url: string): Promise<unknown> | null {
+  if (!url.startsWith("file:")) {
+    return null;
+  }
+
+  return client.execute("PRAGMA foreign_keys = ON;").catch((err) => {
+    console.error("Failed to enable SQLite foreign_keys PRAGMA:", err);
+  });
+}
 
 export function getLibsqlClient(): Client {
   if (!globalClient) {
@@ -18,9 +33,17 @@ export function getLibsqlClient(): Client {
       url,
       authToken,
     });
+    foreignKeysInitPromise = ensureLocalForeignKeys(globalClient, url);
   }
 
   return globalClient;
+}
+
+export async function waitForDbInit(): Promise<void> {
+  getLibsqlClient();
+  if (foreignKeysInitPromise) {
+    await foreignKeysInitPromise;
+  }
 }
 
 export function createDb(client: Client = getLibsqlClient()) {

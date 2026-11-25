@@ -70,17 +70,22 @@ export const clickEvents = sqliteTable(
   (table) => [
     index("idx_click_events_link_time").on(table.linkId, table.clickedAt),
     index("idx_click_events_global_time").on(table.clickedAt),
+    index("idx_click_events_sub_link").on(table.linkId, table.subLinkId, table.clickedAt),
   ]
 );
 
-export const pinAttempts = sqliteTable("pin_attempts", {
-  key: text("key").primaryKey(), // Hash(ip + daily_secret + link_id)
-  linkId: text("link_id")
-    .notNull()
-    .references(() => links.id, { onDelete: "cascade" }),
-  attemptsCount: integer("attempts_count").notNull().default(1),
-  windowExpiresAt: integer("window_expires_at", { mode: "timestamp_ms" }).notNull(),
-});
+export const pinAttempts = sqliteTable(
+  "pin_attempts",
+  {
+    key: text("key").primaryKey(), // Hash(ip + daily_secret + link_id)
+    linkId: text("link_id")
+      .notNull()
+      .references(() => links.id, { onDelete: "cascade" }),
+    attemptsCount: integer("attempts_count").notNull().default(1),
+    windowExpiresAt: integer("window_expires_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [index("idx_pin_attempts_expires").on(table.windowExpiresAt)]
+);
 
 // Better-Auth Tables
 export const user = sqliteTable("user", {

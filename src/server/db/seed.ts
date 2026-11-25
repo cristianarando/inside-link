@@ -18,6 +18,16 @@ async function runSeed() {
   const url = process.env.TURSO_DATABASE_URL || "file:local.db";
   const authToken = process.env.TURSO_AUTH_TOKEN || undefined;
 
+  if (
+    (url.startsWith("libsql://") || url.startsWith("https://")) &&
+    !process.argv.includes("--allow-remote-wipe")
+  ) {
+    console.error(
+      `ERROR: Refusing to wipe/seed remote database (${url}) without --allow-remote-wipe flag.`
+    );
+    process.exit(1);
+  }
+
   console.log(`Connecting to database at ${url}...`);
   const client = createClient({ url, authToken });
   await client.execute("PRAGMA foreign_keys = ON;");
