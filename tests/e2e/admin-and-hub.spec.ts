@@ -37,7 +37,7 @@ describe("T-023 E2E (Admin, HUB, PIN y Auditoría de Seguridad/Accesibilidad)", 
     try {
       // 1. Petición anónima a /api/v1/links debe ser rechazada con 401
       const anonRes = await listAdminLinksAnonymousGet(
-        new NextRequest("https://cristianarando.dev/api/v1/links")
+        new NextRequest("https://cristianarando.dev/api/v1/links"),
       );
       expect(anonRes.status).toBe(401);
 
@@ -65,7 +65,7 @@ describe("T-023 E2E (Admin, HUB, PIN y Auditoría de Seguridad/Accesibilidad)", 
           headers: { "user-agent": "Mozilla/5.0 Chrome/135.0" },
         }),
         "arquitectura-privada",
-        resolutionService
+        resolutionService,
       );
       expect(lockedPage.status).toBe(200);
       const lockedHtml = await lockedPage.text();
@@ -75,50 +75,88 @@ describe("T-023 E2E (Admin, HUB, PIN y Auditoría de Seguridad/Accesibilidad)", 
 
       // 4. Intento de PIN erróneo -> 401, seguido de PIN correcto -> 200 OK con hubLinks
       const failedUnlock = await handlePinUnlockPost(
-        new Request("https://cristianarando.dev/api/v1/slug/arquitectura-privada/unlock", {
-          method: "POST",
-          headers: { "content-type": "application/json", "x-forwarded-for": "192.0.2.55" },
-          body: JSON.stringify({ pin: "0000" }),
-        }),
+        new Request(
+          "https://cristianarando.dev/api/v1/slug/arquitectura-privada/unlock",
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-forwarded-for": "192.0.2.55",
+            },
+            body: JSON.stringify({ pin: "0000" }),
+          },
+        ),
         "arquitectura-privada",
-        { db, resolution: resolutionService }
+        { db, resolution: resolutionService },
       );
       expect(failedUnlock.status).toBe(401);
 
       const okUnlock = await handlePinUnlockPost(
-        new Request("https://cristianarando.dev/api/v1/slug/arquitectura-privada/unlock", {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            "x-forwarded-for": "192.0.2.55",
-            "user-agent": "Mozilla/5.0 Chrome/135.0",
-            "x-vercel-ip-country": "BO",
+        new Request(
+          "https://cristianarando.dev/api/v1/slug/arquitectura-privada/unlock",
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-forwarded-for": "192.0.2.55",
+              "user-agent": "Mozilla/5.0 Chrome/135.0",
+              "x-vercel-ip-country": "BO",
+            },
+            body: JSON.stringify({ pin: "9876" }),
           },
-          body: JSON.stringify({ pin: "9876" }),
-        }),
+        ),
         "arquitectura-privada",
-        { db, resolution: resolutionService }
+        { db, resolution: resolutionService },
       );
       expect(okUnlock.status).toBe(200);
       const unlockBody = (await okUnlock.json()) as {
         data: { type: string; hubLinks: { id: string; url: string }[] };
       };
       expect(unlockBody.data.type).toBe("HUB");
-      expect(unlockBody.data.hubLinks[0]?.url).toBe("https://docs.cristianarando.dev/rfc-2026");
+      expect(unlockBody.data.hubLinks[0]?.url).toBe(
+        "https://docs.cristianarando.dev/rfc-2026",
+      );
 
-      // 5. Clic en sub-enlace de la HUB y verificación en Analytics
-      const subClick = await handleHubSubLinkClickPost(
-        new Request("https://cristianarando.dev/api/v1/slug/arquitectura-privada/hub-click", {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            "user-agent": "Mozilla/5.0 Chrome/135.0",
-            "x-vercel-ip-country": "BO",
+      // 5. Reject HUB sub-link click without signed PIN unlock cookie (401)
+      const unauthSubClick = await handleHubSubLinkClickPost(
+        new Request(
+          "https://links.cristianarando.dev/api/v1/slug/arquitectura-privada/hub-click",
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "user-agent": "Mozilla/5.0 Chrome/135.0",
+            },
+            body: JSON.stringify({ subLinkId: "doc-rfc" }),
           },
-          body: JSON.stringify({ subLinkId: "doc-rfc" }),
-        }),
+        ),
         "arquitectura-privada",
-        { db, resolution: resolutionService }
+        { db, resolution: resolutionService },
+      );
+      expect(unauthSubClick.status).toBe(401);
+
+      // 6. Extract Set-Cookie from okUnlock, pass Cookie header to hub-click (200 OK), and verify analytics
+      const setCookieHeader = okUnlock.headers.get("set-cookie");
+      expect(setCookieHeader).toBeTruthy();
+      expect(setCookieHeader).toContain("il_unlock_");
+      const unlockCookiePair = setCookieHeader!.split(";")[0]!;
+
+      const subClick = await handleHubSubLinkClickPost(
+        new Request(
+          "https://links.cristianarando.dev/api/v1/slug/arquitectura-privada/hub-click",
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              cookie: unlockCookiePair,
+              "user-agent": "Mozilla/5.0 Chrome/135.0",
+              "x-vercel-ip-country": "BO",
+            },
+            body: JSON.stringify({ subLinkId: "doc-rfc" }),
+          },
+        ),
+        "arquitectura-privada",
+        { db, resolution: resolutionService },
       );
       expect(subClick.status).toBe(200);
 
@@ -126,7 +164,9 @@ describe("T-023 E2E (Admin, HUB, PIN y Auditoría de Seguridad/Accesibilidad)", 
         linkId: hub.id,
         range: "7d",
       });
-      expect(summary?.totalClicksInRange).toBe(2); // 1 desbloqueo + 1 clic en sub-enlace
+      expect(summary?.totalClicksInRange).toBe(1); // Primary unlock visit only (sub-link click does not inflate totalClicksInRange)
+      expect(summary?.hubSubLinkClicks).toBe(1);
+      expect(summary?.subLinks[0]?.subLinkId).toBe("doc-rfc");
     } finally {
       client.close();
     }

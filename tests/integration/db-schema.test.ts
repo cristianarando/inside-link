@@ -18,7 +18,7 @@ describe("Database Schema & Constraints Integration", () => {
 
   it("applies migrations cleanly and creates all tables", async () => {
     const tables = await client.execute(
-      "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;"
+      "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;",
     );
     const tableNames = tables.rows.map((r) => r.name as string);
     expect(tableNames).toContain("links");
@@ -39,7 +39,7 @@ describe("Database Schema & Constraints Integration", () => {
         title: "Test Upper",
         createdAt: now,
         updatedAt: now,
-      })
+      }),
     ).rejects.toThrow();
   });
 
@@ -54,7 +54,7 @@ describe("Database Schema & Constraints Integration", () => {
         title: "Test Direct Missing Destination",
         createdAt: now,
         updatedAt: now,
-      })
+      }),
     ).rejects.toThrow();
   });
 
@@ -66,11 +66,12 @@ describe("Database Schema & Constraints Integration", () => {
         slug: "test-invalid-status",
         type: "DIRECT",
         destinationUrl: "https://example.com",
-        redirectStatus: 999 as any,
+        redirectStatus:
+          999 as unknown as (typeof schema.links.$inferInsert)["redirectStatus"],
         title: "Invalid Status",
         createdAt: now,
         updatedAt: now,
-      })
+      }),
     ).rejects.toThrow();
   });
 

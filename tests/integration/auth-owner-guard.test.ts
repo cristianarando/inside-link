@@ -8,7 +8,7 @@ import { assertAdminApiSession } from "@/server/auth/session";
 
 describe("Single-Owner GitHub OAuth Guard Integration", () => {
   let client: ReturnType<typeof createClient>;
-  let db: ReturnType<typeof drizzle>;
+  let db: ReturnType<typeof drizzle<typeof schema>>;
   let testAuth: ReturnType<typeof createAuthInstance>;
 
   beforeEach(async () => {
@@ -16,7 +16,7 @@ describe("Single-Owner GitHub OAuth Guard Integration", () => {
     await client.execute("PRAGMA foreign_keys = ON;");
     db = drizzle(client, { schema });
     await migrate(db, { migrationsFolder: "./src/server/db/migrations" });
-    testAuth = createAuthInstance(db as any);
+    testAuth = createAuthInstance(db);
   });
 
   it("rejects unauthorized GitHub account IDs in the hook with 403 FORBIDDEN", async () => {
@@ -24,6 +24,7 @@ describe("Single-Owner GitHub OAuth Guard Integration", () => {
     expect(accountHook).toBeDefined();
 
     if (accountHook) {
+      type AccountHookInput = Parameters<typeof accountHook>[0];
       const unauthorizedAccount = {
         id: "acc_intruder",
         accountId: "intruder_id_999999",
@@ -31,14 +32,16 @@ describe("Single-Owner GitHub OAuth Guard Integration", () => {
         userId: "usr_intruder",
         createdAt: new Date(),
         updatedAt: new Date(),
-      };
+      } as AccountHookInput;
 
-      await expect(
-        accountHook(unauthorizedAccount as any)
-      ).rejects.toThrow(/Acceso restringido exclusivamente al propietario/);
+      await expect(accountHook(unauthorizedAccount)).rejects.toThrow(
+        /Access restricted exclusively to the domain owner/,
+      );
 
       // Verify no records inserted
-      const count = await client.execute("SELECT count(*) as total FROM account");
+      const count = await client.execute(
+        "SELECT count(*) as total FROM account",
+      );
       expect(count.rows[0]?.total).toBe(0);
     }
   });
@@ -48,6 +51,7 @@ describe("Single-Owner GitHub OAuth Guard Integration", () => {
     expect(accountHook).toBeDefined();
 
     if (accountHook) {
+      type AccountHookInput = Parameters<typeof accountHook>[0];
       const authorizedAccount = {
         id: "acc_owner",
         accountId: process.env.ALLOWED_GITHUB_ID || "12345678",
@@ -55,9 +59,9 @@ describe("Single-Owner GitHub OAuth Guard Integration", () => {
         userId: "usr_owner",
         createdAt: new Date(),
         updatedAt: new Date(),
-      };
+      } as AccountHookInput;
 
-      await accountHook(authorizedAccount as any);
+      await accountHook(authorizedAccount);
     }
   });
 
