@@ -3,6 +3,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { isPrefetchRequest, isSocialPreviewBot } from "@/lib/bot-detector";
+import {
+  evaluateSmartRouting,
+  extractSmartRoutingContext,
+} from "@/lib/smart-routing";
 import { verifyPin } from "@/server/crypto/pin";
 import { createPinUnlockCookieHeader } from "@/server/crypto/pin-token";
 import {
@@ -90,6 +94,18 @@ export async function handlePinUnlockPost(
     );
   }
 
+  if (row.startsAt && row.startsAt.getTime() > now.getTime()) {
+    return NextResponse.json(
+      {
+        error: {
+          code: "LINK_SCHEDULED",
+          message: "This link is scheduled and has not launched yet",
+        },
+      },
+      { status: 403 },
+    );
+  }
+
   if (!row.passwordHash) {
     return NextResponse.json(
       {
@@ -141,6 +157,7 @@ export async function handlePinUnlockPost(
     );
   }
 
+  const dto = toLinkDTO(row, now);
   const rawQuery = parsed.data.query?.replace(/^\?/, "") ?? "";
   const incomingParams = rawQuery
     ? new URLSearchParams(rawQuery)
@@ -148,7 +165,13 @@ export async function handlePinUnlockPost(
 
   let finalDestination: string | null = null;
   if (row.type === "DIRECT") {
-    if (!row.destinationUrl) {
+    const routedDestination = evaluateSmartRouting(
+      dto.routingRules,
+      extractSmartRoutingContext(request.headers),
+    );
+    const effectiveBase = routedDestination ?? row.destinationUrl;
+
+    if (!effectiveBase) {
       return NextResponse.json(
         { error: { code: "NOT_FOUND", message: "Short link not found" } },
         { status: 404 },
@@ -156,7 +179,7 @@ export async function handlePinUnlockPost(
     }
     try {
       finalDestination = buildDestinationUrl(
-        row.destinationUrl,
+        effectiveBase,
         incomingParams,
         row.forwardQueryParams,
       );
@@ -199,12 +222,12 @@ export async function handlePinUnlockPost(
     );
   }
 
-  const dto = toLinkDTO(row, now);
   return NextResponse.json(
     {
       data: {
         slug: dto.slug,
         type: dto.type,
+        isCloaked: dto.isCloaked,
         destinationUrl: dto.type === "DIRECT" ? finalDestination : null,
         hubLinks: dto.type === "HUB" ? dto.hubLinks : null,
       },

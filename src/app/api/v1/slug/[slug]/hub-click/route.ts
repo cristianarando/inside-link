@@ -64,6 +64,7 @@ export async function handleHubSubLinkClickPost(
     !row ||
     row.type !== "HUB" ||
     !row.isActive ||
+    (row.startsAt && row.startsAt.getTime() > now.getTime()) ||
     (row.expiresAt && row.expiresAt.getTime() <= now.getTime())
   ) {
     return NextResponse.json(

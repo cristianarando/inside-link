@@ -2,8 +2,8 @@ import fs from "node:fs";
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { ulid } from "ulidx";
-import * as schema from "./schema";
 import { hashPin } from "../crypto/pin";
+import * as schema from "./schema";
 
 if (fs.existsSync(".env")) {
   process.loadEnvFile?.(".env");
@@ -45,74 +45,172 @@ async function runSeed() {
   await client.execute("DELETE FROM pin_attempts;");
   await client.execute("DELETE FROM click_events;");
   await client.execute("DELETE FROM links;");
+  await client.execute("DELETE FROM site_settings;");
 
-  console.log("Inserting 18 realistic links...");
+  console.log("Seeding default Bento site settings...");
+  await db.insert(schema.siteSettings).values({
+    id: "default",
+    displayName: "Cristian Arando",
+    headline: "Full-Stack & Systems Engineer",
+    bio: "Curated directory of full-stack projects, interactive micro-landings, open-source repositories, and verified social profiles.",
+    avatarUrl: "/brand/author-avatar.png",
+    statusText: "Building distributed web platforms & AI tools",
+    statusColor: "emerald",
+    statusHref: "https://cristianarando.dev",
+    themePreset: "obsidian-emerald",
+    customAccentHex: null,
+    surfaceTone: "obsidian",
+    glowIntensity: "subtle",
+    cardStyle: "glass",
+    directoryLayout: "bento",
+    socialLinksJson: JSON.stringify([
+      {
+        id: "github",
+        platform: "github",
+        label: "GitHub",
+        url: "https://github.com/cristianarando",
+        icon: "github",
+      },
+      {
+        id: "linkedin",
+        platform: "linkedin",
+        label: "LinkedIn",
+        url: "https://linkedin.com/in/cristianarando",
+        icon: "linkedin",
+      },
+      {
+        id: "x",
+        platform: "twitter",
+        label: "X / Twitter",
+        url: "https://x.com/cristianarando",
+        icon: "twitter",
+      },
+      {
+        id: "portfolio",
+        platform: "website",
+        label: "Portfolio",
+        url: "https://cristianarando.dev",
+        icon: "globe",
+      },
+    ]),
+    updatedAt: new Date(now),
+  });
 
-  const seedLinks = [
+  console.log("Inserting 19 realistic v2 showcase links...");
+
+  const seedLinks: schema.NewLink[] = [
     {
       id: ulid(),
       slug: "github",
-      type: "DIRECT" as const,
+      type: "DIRECT",
       destinationUrl: "https://github.com/cristianarando",
       redirectStatus: 307,
       forwardQueryParams: true,
       title: "GitHub Profile",
       description:
         "Open-source repositories, software architecture, and code contributions.",
-      category: "social" as const,
+      category: "social",
       tagsJson: JSON.stringify(["github", "code", "opensource"]),
       icon: "github",
       isActive: true,
       isPublic: true,
       isPinned: true,
       clicksCount: 42,
+      healthStatus: "healthy",
+      healthStatusCode: 200,
+      healthLatencyMs: 145,
+      healthCheckedAt: new Date(now - 3600_000),
       createdAt: new Date(now - 30 * dayMs),
       updatedAt: new Date(now - 10 * dayMs),
     },
     {
       id: ulid(),
       slug: "linkedin",
-      type: "DIRECT" as const,
+      type: "DIRECT",
       destinationUrl: "https://linkedin.com/in/cristianarando",
       redirectStatus: 307,
       forwardQueryParams: true,
       title: "LinkedIn Profile",
       description:
         "Professional background, engineering experience, and network.",
-      category: "social" as const,
+      category: "social",
       tagsJson: JSON.stringify(["linkedin", "career", "network"]),
       icon: "linkedin",
       isActive: true,
       isPublic: true,
       isPinned: true,
       clicksCount: 38,
+      healthStatus: "healthy",
+      healthStatusCode: 200,
+      healthLatencyMs: 182,
+      healthCheckedAt: new Date(now - 3600_000),
       createdAt: new Date(now - 28 * dayMs),
       updatedAt: new Date(now - 8 * dayMs),
     },
     {
       id: ulid(),
       slug: "proyecto-guia-turistica",
-      type: "HUB" as const,
+      type: "HUB",
       destinationUrl: null,
       redirectStatus: 307,
       forwardQueryParams: true,
+      themeJson: JSON.stringify({
+        preset: "midnight-cyan",
+        surfaceTone: "midnight",
+        glowIntensity: "vibrant",
+      }),
       hubLinksJson: JSON.stringify([
         {
           id: "repo",
-          label: "View GitHub Repository",
+          kind: "github-repo",
+          label: "Smart Travel Guide Repository",
+          sublabel:
+            "Offline-first Next.js & React Native travel discovery monorepo.",
           url: "https://github.com/cristianarando/guia-turistica",
           icon: "github",
           variant: "primary",
         },
         {
           id: "demo",
+          kind: "button",
           label: "Try Live Demo",
+          sublabel: "Interactive map explorer with curated local routes",
           url: "https://guia-turistica.cristianarando.dev",
           icon: "external-link",
+          variant: "primary",
+        },
+        {
+          id: "walkthrough",
+          kind: "youtube",
+          label: "Architecture & Offline Sync Walkthrough",
+          sublabel: "3-minute engineering overview · Privacy-enhanced player",
+          url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+          icon: "youtube",
           variant: "secondary",
         },
         {
+          id: "demo-creds",
+          kind: "callout",
+          label: "Sandbox Demo Credentials",
+          sublabel:
+            "Reviewer Email: demo@cristianarando.dev · Access Passcode: DEMO-2026",
+          calloutTone: "tip",
+          icon: "sparkles",
+          variant: "secondary",
+        },
+        {
+          id: "quickstart",
+          kind: "code",
+          label: "Run Locally with Docker",
+          codeLanguage: "bash",
+          codeText:
+            "git clone https://github.com/cristianarando/guia-turistica.git\ncd guia-turistica && pnpm install && pnpm dev",
+          icon: "code-2",
+          variant: "outline",
+        },
+        {
           id: "docs",
+          kind: "button",
           label: "Architecture & Documentation",
           url: "https://github.com/cristianarando/guia-turistica/tree/main/docs",
           icon: "book-open",
@@ -122,7 +220,7 @@ async function runSeed() {
       title: "Smart Travel Guide App",
       description:
         "Mobile and web platform for travel discovery with offline recommendations.",
-      category: "project" as const,
+      category: "project",
       tagsJson: JSON.stringify(["travel", "react-native", "nextjs", "offline"]),
       icon: "map-pin",
       isActive: true,
@@ -135,41 +233,65 @@ async function runSeed() {
     {
       id: ulid(),
       slug: "mi-cv",
-      type: "DIRECT" as const,
+      type: "DIRECT",
       destinationUrl: "https://cristianarando.dev/cv",
       redirectStatus: 307,
       forwardQueryParams: true,
-      title: "Curriculum Vitae (Resume)",
+      routingRulesJson: JSON.stringify([
+        {
+          id: "rule-es",
+          label: "Spanish locale resume",
+          destinationUrl: "https://cristianarando.dev/es/cv",
+          languages: ["es"],
+        },
+        {
+          id: "rule-mobile",
+          label: "Mobile-optimized interactive CV",
+          destinationUrl: "https://cristianarando.dev/cv?view=mobile",
+          devices: ["mobile"],
+        },
+      ]),
+      title: "Curriculum Vitae (Smart Routed)",
       description:
-        "Up-to-date downloadable PDF resume and engineering experience.",
-      category: "resource" as const,
-      tagsJson: JSON.stringify(["cv", "resume", "pdf"]),
+        "Locale-aware engineering resume routed automatically by language and device.",
+      category: "resource",
+      tagsJson: JSON.stringify(["cv", "resume", "smart-routing"]),
       icon: "file-text",
       isActive: true,
       isPublic: true,
       isPinned: false,
       clicksCount: 19,
+      healthStatus: "healthy",
+      healthStatusCode: 200,
+      healthLatencyMs: 112,
+      healthCheckedAt: new Date(now - 3600_000),
       createdAt: new Date(now - 20 * dayMs),
       updatedAt: new Date(now - 2 * dayMs),
     },
     {
       id: ulid(),
       slug: "inside-link",
-      type: "HUB" as const,
+      type: "HUB",
       destinationUrl: null,
       redirectStatus: 307,
       forwardQueryParams: true,
       hubLinksJson: JSON.stringify([
         {
           id: "repo",
-          label: "GitHub Repository",
+          kind: "github-repo",
+          label: "InsideLink v2 Source Repository",
+          sublabel:
+            "Next.js 16.4, Turso libSQL, Drizzle ORM, Smart Routing & Theme Studio.",
           url: "https://github.com/cristianarando/inside-link",
           icon: "github",
           variant: "primary",
         },
         {
           id: "docs",
-          label: "System Design & Backlog",
+          kind: "button",
+          label: "System Architecture Documentation",
+          sublabel:
+            "Redirect state machine, security model, and data invariants",
           url: "https://cristianarando.dev/docs/inside-link",
           icon: "book-open",
           variant: "secondary",
@@ -178,7 +300,7 @@ async function runSeed() {
       title: "InsideLink Platform",
       description:
         "Custom URL shortener, project micro-landings, and link hub built with Turso & Next.js.",
-      category: "project" as const,
+      category: "project",
       tagsJson: JSON.stringify(["nextjs", "turso", "drizzle", "system-design"]),
       icon: "link",
       isActive: true,
@@ -190,8 +312,44 @@ async function runSeed() {
     },
     {
       id: ulid(),
+      slug: "v2-launch-keynote",
+      type: "HUB",
+      destinationUrl: null,
+      redirectStatus: 307,
+      forwardQueryParams: true,
+      startsAt: new Date(now + 3 * dayMs),
+      themeJson: JSON.stringify({
+        preset: "cosmic-violet",
+        surfaceTone: "midnight",
+        glowIntensity: "vibrant",
+      }),
+      hubLinksJson: JSON.stringify([
+        {
+          id: "slides",
+          kind: "button",
+          label: "Keynote Slides & Live Demo",
+          url: "https://cristianarando.dev/talks/v2-launch",
+          icon: "external-link",
+          variant: "primary",
+        },
+      ]),
+      title: "Distributed Systems Live Workshop",
+      description:
+        "Upcoming live engineering session on edge SQLite, zero-latency routing, and observability.",
+      category: "project",
+      tagsJson: JSON.stringify(["workshop", "edge", "turso"]),
+      icon: "globe",
+      isActive: true,
+      isPublic: true,
+      isPinned: false,
+      clicksCount: 0,
+      createdAt: new Date(now - 2 * dayMs),
+      updatedAt: new Date(now - 1 * dayMs),
+    },
+    {
+      id: ulid(),
       slug: "presupuesto-confidencial",
-      type: "DIRECT" as const,
+      type: "DIRECT",
       destinationUrl:
         "https://drive.google.com/file/d/demo-presupuesto-hash/view",
       redirectStatus: 307,
@@ -199,7 +357,7 @@ async function runSeed() {
       title: "Project Proposal & Quote (Protected)",
       description:
         "Confidential commercial proposal with detailed breakdown (Demo PIN: 1234).",
-      category: "personal" as const,
+      category: "personal",
       tagsJson: JSON.stringify(["commercial", "private"]),
       icon: "lock",
       isActive: true,
@@ -213,13 +371,13 @@ async function runSeed() {
     {
       id: ulid(),
       slug: "enlace-expirado",
-      type: "DIRECT" as const,
+      type: "DIRECT",
       destinationUrl: "https://meet.google.com/xyz-demo",
       redirectStatus: 307,
       forwardQueryParams: false,
       title: "Sync Meeting Link (Expired)",
       description: "Temporary link for an engineering coordination call.",
-      category: "temporary" as const,
+      category: "temporary",
       tagsJson: JSON.stringify(["meet", "temporary"]),
       icon: "clock",
       isActive: true,
@@ -233,13 +391,14 @@ async function runSeed() {
     {
       id: ulid(),
       slug: "tiendanext",
-      type: "HUB" as const,
+      type: "HUB",
       destinationUrl: null,
       redirectStatus: 307,
       forwardQueryParams: true,
       hubLinksJson: JSON.stringify([
         {
           id: "repo",
+          kind: "github-repo",
           label: "Source Code on GitHub",
           url: "https://github.com/cristianarando/tiendanext",
           icon: "github",
@@ -249,7 +408,7 @@ async function runSeed() {
       title: "TiendaNext E-Commerce",
       description:
         "Conversational commerce platform powered by WhatsApp and NestJS.",
-      category: "project" as const,
+      category: "project",
       tagsJson: JSON.stringify(["ecommerce", "whatsapp", "nestjs"]),
       icon: "shopping-bag",
       isActive: true,
@@ -262,14 +421,14 @@ async function runSeed() {
     {
       id: ulid(),
       slug: "whatsapp",
-      type: "DIRECT" as const,
+      type: "DIRECT",
       destinationUrl: "https://wa.me/59170000000",
       redirectStatus: 307,
       forwardQueryParams: false,
       title: "Direct WhatsApp Chat",
       description:
         "Direct messaging channel for quick inquiries and collaboration.",
-      category: "social" as const,
+      category: "social",
       tagsJson: JSON.stringify(["whatsapp", "contact"]),
       icon: "message-circle",
       isActive: true,
@@ -282,13 +441,13 @@ async function runSeed() {
     {
       id: ulid(),
       slug: "reunion-meet",
-      type: "DIRECT" as const,
+      type: "DIRECT",
       destinationUrl: "https://meet.google.com/abc-demo",
       redirectStatus: 307,
       forwardQueryParams: false,
       title: "Video Call Room (Max 5 Clicks)",
       description: "Temporary meeting link with a maximum click cap.",
-      category: "temporary" as const,
+      category: "temporary",
       tagsJson: JSON.stringify(["meet", "temporary"]),
       icon: "video",
       isActive: true,
@@ -302,14 +461,15 @@ async function runSeed() {
     {
       id: ulid(),
       slug: "sistema-solar-3d",
-      type: "DIRECT" as const,
+      type: "DIRECT",
       destinationUrl: "https://solarsystem.cristianarando.dev",
       redirectStatus: 307,
       forwardQueryParams: true,
+      isCloaked: true,
       title: "3D Solar System in Three.js",
       description:
         "Interactive 3D solar system simulator built with WebGL and Three.js.",
-      category: "project" as const,
+      category: "project",
       tagsJson: JSON.stringify(["threejs", "webgl", "canvas"]),
       icon: "globe",
       isActive: true,
@@ -322,14 +482,14 @@ async function runSeed() {
     {
       id: ulid(),
       slug: "bolivia-tech",
-      type: "DIRECT" as const,
+      type: "DIRECT",
       destinationUrl: "https://github.com/bolivia-tech/comunidad",
       redirectStatus: 307,
       forwardQueryParams: true,
       title: "Bolivia Tech Community",
       description:
         "Open directory of tech communities, events, and developer resources.",
-      category: "resource" as const,
+      category: "resource",
       tagsJson: JSON.stringify(["community", "bolivia", "tech"]),
       icon: "users",
       isActive: true,
@@ -342,14 +502,14 @@ async function runSeed() {
     {
       id: ulid(),
       slug: "podcast-ia",
-      type: "DIRECT" as const,
-      destinationUrl: "https://spotify.com/show/demo-podcast",
+      type: "DIRECT",
+      destinationUrl: "https://open.spotify.com/show/2MAi0BvDc6GTFvKFPXnkCL",
       redirectStatus: 307,
       forwardQueryParams: true,
       title: "AI Engineering Podcast Episodes",
       description:
         "Deep-dive discussions on autonomous agents, LLMs, and distributed systems.",
-      category: "resource" as const,
+      category: "resource",
       tagsJson: JSON.stringify(["podcast", "ai", "audio"]),
       icon: "headphones",
       isActive: true,
@@ -362,13 +522,13 @@ async function runSeed() {
     {
       id: ulid(),
       slug: "notas-personales",
-      type: "DIRECT" as const,
+      type: "DIRECT",
       destinationUrl: "https://notion.so/cristianarando/demo-notes",
       redirectStatus: 307,
       forwardQueryParams: false,
       title: "Private Engineering Notes",
       description: "Personal engineering logbook and architecture drafts.",
-      category: "personal" as const,
+      category: "personal",
       tagsJson: JSON.stringify(["notion", "notes"]),
       icon: "book",
       isActive: true,
@@ -381,14 +541,14 @@ async function runSeed() {
     {
       id: ulid(),
       slug: "design-system",
-      type: "DIRECT" as const,
+      type: "DIRECT",
       destinationUrl: "https://www.figma.com/@cristianarando",
       redirectStatus: 307,
       forwardQueryParams: true,
       title: "Figma Design Tokens & UI Kit",
       description:
         "Reusable UI components and visual design system guidelines.",
-      category: "resource" as const,
+      category: "resource",
       tagsJson: JSON.stringify(["figma", "ui", "design"]),
       icon: "palette",
       isActive: true,
@@ -401,14 +561,14 @@ async function runSeed() {
     {
       id: ulid(),
       slug: "twitter",
-      type: "DIRECT" as const,
+      type: "DIRECT",
       destinationUrl: "https://x.com/cristianarando",
       redirectStatus: 307,
       forwardQueryParams: true,
       title: "X / Twitter",
       description:
         "Short thoughts on software engineering, web performance, and AI.",
-      category: "social" as const,
+      category: "social",
       tagsJson: JSON.stringify(["twitter", "x"]),
       icon: "twitter",
       isActive: true,
@@ -421,14 +581,14 @@ async function runSeed() {
     {
       id: ulid(),
       slug: "youtube",
-      type: "DIRECT" as const,
+      type: "DIRECT",
       destinationUrl: "https://youtube.com/@cristianarando",
       redirectStatus: 307,
       forwardQueryParams: true,
       title: "YouTube Channel",
       description:
         "Programming tutorials, system design walkthroughs, and live coding.",
-      category: "social" as const,
+      category: "social",
       tagsJson: JSON.stringify(["youtube", "video", "tutorials"]),
       icon: "youtube",
       isActive: true,
@@ -441,13 +601,13 @@ async function runSeed() {
     {
       id: ulid(),
       slug: "enlace-pausado",
-      type: "DIRECT" as const,
+      type: "DIRECT",
       destinationUrl: "https://example.com/demo",
       redirectStatus: 307,
       forwardQueryParams: false,
       title: "Temporarily Paused Link",
       description: "Link currently under maintenance.",
-      category: "temporary" as const,
+      category: "temporary",
       tagsJson: JSON.stringify(["demo"]),
       icon: "pause-circle",
       isActive: false,
@@ -463,20 +623,20 @@ async function runSeed() {
   console.log(`Inserted ${seedLinks.length} links successfully.`);
 
   console.log(
-    "Generating 120 click events distributed across the last 30 days...",
+    "Generating 140 click events distributed across the last 30 days...",
   );
-  const countries = [
-    "BO",
-    "BO",
-    "BO",
-    "ES",
-    "ES",
-    "US",
-    "AR",
-    "MX",
-    "PE",
-    "CL",
-  ];
+  const locations = [
+    { country: "BO", city: "La Paz" },
+    { country: "BO", city: "Santa Cruz" },
+    { country: "BO", city: "Cochabamba" },
+    { country: "ES", city: "Madrid" },
+    { country: "ES", city: "Barcelona" },
+    { country: "US", city: "San Francisco" },
+    { country: "AR", city: "Buenos Aires" },
+    { country: "MX", city: "Mexico City" },
+    { country: "PE", city: "Lima" },
+    { country: "CL", city: "Santiago" },
+  ] as const;
   const devices = ["desktop", "mobile", "mobile", "tablet"] as const;
   const osList = ["Windows", "macOS", "Android", "iOS", "Linux"] as const;
   const browsers = ["Chrome", "Safari", "Firefox", "Edge"] as const;
@@ -490,18 +650,20 @@ async function runSeed() {
   ];
 
   const seedEvents: schema.NewClickEvent[] = [];
-  const publicLinks = seedLinks.filter((l) => l.clicksCount > 0);
+  const activeVisitedLinks = seedLinks.filter((l) => (l.clicksCount ?? 0) > 0);
 
-  for (let i = 0; i < 120; i++) {
-    const link = publicLinks[i % publicLinks.length]!;
+  for (let i = 0; i < 140; i++) {
+    const link = activeVisitedLinks[i % activeVisitedLinks.length]!;
     const offsetMs = Math.floor(Math.random() * 30 * dayMs);
     const eventTime = new Date(now - offsetMs);
+    const loc =
+      locations[Math.floor(Math.random() * locations.length)] ?? locations[0];
 
     seedEvents.push({
       id: ulid(),
       linkId: link.id,
-      country: countries[Math.floor(Math.random() * countries.length)] || "BO",
-      city: "La Paz",
+      country: loc.country,
+      city: loc.city,
       device: devices[Math.floor(Math.random() * devices.length)] || "desktop",
       os: osList[Math.floor(Math.random() * osList.length)] || "Windows",
       browser:

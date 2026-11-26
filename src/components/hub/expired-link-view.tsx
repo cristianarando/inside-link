@@ -1,10 +1,15 @@
 import React from "react";
-import type { InactiveReason } from "@/server/services/resolution.service";
+import {
+  resolveThemeTokens,
+  themeTokensToInlineStyle,
+  type ResolvedThemeTokens,
+} from "@/lib/themes";
 import { getCanonicalBaseUrl } from "@/server/og/presentation";
 import {
   escapeHtml,
   getPortfolioBaseUrl,
 } from "@/server/services/og-render.service";
+import type { InactiveReason } from "@/server/services/resolution.service";
 
 function getCanonicalHostLabel(): string {
   try {
@@ -50,13 +55,16 @@ export function renderExpiredLinkHtml(params: {
   reason: InactiveReason;
   slug: string;
   title?: string;
+  themeTokens?: ResolvedThemeTokens;
 }): string {
   const copy = getExpiredLinkCopy(params.reason);
+  const tokens = params.themeTokens ?? resolveThemeTokens();
+  const cssVars = escapeHtml(themeTokensToInlineStyle(tokens));
   const baseUrl = escapeHtml(getPortfolioBaseUrl());
   const canonicalHost = escapeHtml(getCanonicalHostLabel());
 
   return `<!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en" class="dark" style="${cssVars}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -64,15 +72,15 @@ export function renderExpiredLinkHtml(params: {
   <link rel="icon" href="/brand/logo-qr.svg" type="image/svg+xml" />
   <title>${escapeHtml(copy.heading)} — ${canonicalHost}</title>
   <style>
-    body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#09090b;color:#fafafa;font-family:system-ui,-apple-system,sans-serif;padding:16px}
-    .card{max-width:440px;width:100%;border:1px solid #27272a;background:rgba(24,24,27,.85);border-radius:18px;padding:32px;text-align:center;box-shadow:0 24px 48px rgba(0,0,0,.5)}
+    body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background-color:var(--il-canvas);background-image:radial-gradient(ellipse 80% 45% at 50% -10%,rgba(var(--il-accent-rgb),var(--il-glow-alpha)),transparent 70%);color:#fafafa;font-family:system-ui,-apple-system,sans-serif;padding:16px}
+    .card{max-width:440px;width:100%;border:1px solid #27272a;background:rgba(24,24,27,.85);backdrop-filter:blur(12px);border-radius:18px;padding:32px;text-align:center;box-shadow:0 24px 48px rgba(0,0,0,.5)}
     .badge{display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid rgba(245,158,11,.35);background:rgba(245,158,11,.1);font-family:ui-monospace,monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#fcd34d}
     h1{margin:14px 0 10px;font-size:22px;font-weight:600}
     .slug{font-family:ui-monospace,monospace;font-size:12px;color:#71717a;margin-bottom:12px}
     p{margin:0 0 24px;font-size:14px;line-height:1.6;color:#a1a1aa}
     .actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
     a.btn{display:inline-flex;align-items:center;padding:10px 16px;border-radius:12px;font-size:14px;font-weight:500;text-decoration:none}
-    a.primary{background:#10b981;color:#052e16;font-weight:600}
+    a.primary{background:var(--il-accent);color:var(--il-accent-text);font-weight:600}
     a.secondary{border:1px solid #3f3f46;color:#e4e4e7;background:#18181b}
   </style>
 </head>

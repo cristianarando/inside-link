@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import type { HubLinkItem } from "@/lib/validations/link.schema";
+import { HubBlockRenderer } from "./hub-landing-view";
 import type { PinUnlockRenderInput } from "./pin-unlock-html";
 
 function isSafeHttpUrl(url: unknown): url is string {
@@ -59,6 +60,7 @@ export function PinUnlockForm({
       const json = (await response.json()) as {
         data?: {
           type: "DIRECT" | "HUB";
+          isCloaked?: boolean;
           destinationUrl?: string | null;
           hubLinks?: HubLinkItem[] | null;
         };
@@ -68,17 +70,18 @@ export function PinUnlockForm({
         setError(json.error?.message ?? "Incorrect PIN");
         return;
       }
-      if (
-        json.data.type === "DIRECT" &&
-        isSafeHttpUrl(json.data.destinationUrl)
-      ) {
-        window.location.assign(json.data.destinationUrl);
-        return;
+      if (json.data.type === "DIRECT") {
+        if (json.data.isCloaked) {
+          window.location.reload();
+          return;
+        }
+        if (isSafeHttpUrl(json.data.destinationUrl)) {
+          window.location.assign(json.data.destinationUrl);
+          return;
+        }
       }
       if (json.data.type === "HUB" && Array.isArray(json.data.hubLinks)) {
-        setUnlockedHubLinks(
-          json.data.hubLinks.filter((item) => isSafeHttpUrl(item.url)),
-        );
+        setUnlockedHubLinks(json.data.hubLinks);
       }
     } catch {
       setError("Could not verify PIN.");
@@ -95,27 +98,15 @@ export function PinUnlockForm({
           <p className="text-sm text-zinc-400">{description}</p>
         ) : null}
         <div className="flex flex-col gap-2.5 pt-1">
-          {unlockedHubLinks.map((item) => {
-            const variantClasses =
-              item.variant === "secondary"
-                ? "border border-zinc-700 bg-zinc-800 text-zinc-100 hover:bg-zinc-700"
-                : item.variant === "outline"
-                  ? "border border-zinc-700 bg-transparent text-zinc-200 hover:border-emerald-500/60 hover:text-emerald-300"
-                  : "bg-emerald-500 font-semibold text-zinc-950 hover:bg-emerald-400";
-            return (
-              <a
-                key={item.id}
-                href={item.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => trackHubSubLinkClick(slug, item.id)}
-                className={`flex items-center justify-between rounded-xl px-4 py-3 text-sm font-medium transition ${variantClasses}`}
-              >
-                <span>{item.label}</span>
-                <span aria-hidden="true">↗</span>
-              </a>
-            );
-          })}
+          {unlockedHubLinks.map((item) => (
+            <HubBlockRenderer
+              key={item.id}
+              item={item}
+              onSubLinkClick={(subLinkId) =>
+                trackHubSubLinkClick(slug, subLinkId)
+              }
+            />
+          ))}
         </div>
       </div>
     );

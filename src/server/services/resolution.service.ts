@@ -1,12 +1,17 @@
 import { and, eq, sql } from "drizzle-orm";
 import { monotonicFactory } from "ulidx";
 
-import { clickEvents, links, type Link } from "../db/schema";
-import { hasValidPinUnlockCookie } from "../crypto/pin-token";
 import { isPrefetchRequest, isSocialPreviewBot } from "@/lib/bot-detector";
 import { isReservedSlug } from "@/lib/constants/reserved-slugs";
 import { extractTrafficMetadata } from "@/lib/geo-headers";
+import {
+  evaluateSmartRouting,
+  extractSmartRoutingContext,
+} from "@/lib/smart-routing";
+import type { LinkThemeOverride } from "@/lib/themes";
 import type { LinkDTO } from "@/lib/types/link-dto";
+import { hasValidPinUnlockCookie } from "../crypto/pin-token";
+import { clickEvents, links, type Link } from "../db/schema";
 import { toLinkDTO, type AppDatabase } from "./link.service";
 
 const nextEventId = monotonicFactory();
@@ -26,12 +31,21 @@ export type SlugResolutionResult =
       reason: InactiveReason;
       slug: string;
       title: string;
+      theme: LinkThemeOverride | null;
       shouldTrackClick: false;
     }
   | {
       kind: "SOCIAL_BOT_OG";
       status: 200;
       link: LinkDTO;
+      shouldTrackClick: false;
+    }
+  | {
+      kind: "SCHEDULED_COUNTDOWN";
+      status: 200;
+      linkId: string;
+      link: LinkDTO;
+      startsAt: string;
       shouldTrackClick: false;
     }
   | {
@@ -42,6 +56,7 @@ export type SlugResolutionResult =
       title: string;
       description: string | null;
       icon: string;
+      theme: LinkThemeOverride | null;
       shouldTrackClick: false;
     }
   | {
@@ -49,6 +64,14 @@ export type SlugResolutionResult =
       status: 200;
       linkId: string;
       link: LinkDTO;
+      shouldTrackClick: boolean;
+    }
+  | {
+      kind: "CLOAKED_VIEW";
+      status: 200;
+      linkId: string;
+      link: LinkDTO;
+      destinationUrl: string;
       shouldTrackClick: boolean;
     }
   | {
@@ -103,8 +126,8 @@ function toUrlSearchParams(
 }
 
 /**
- * Fusiona los query params entrantes en la URL de destino sin permitir
- * alteración de protocolo/host/path ni sobrescribir parámetros ya definidos en el destino.
+ * Safely merges incoming query parameters into the destination URL without
+ * allowing protocol/host/path tampering or overwriting parameters already set on the target.
  */
 export function buildDestinationUrl(
   baseDestination: string,
@@ -138,6 +161,29 @@ function classifyInactiveReason(
   return null;
 }
 
+function resolveDirectLocation(
+  row: Link,
+  dto: LinkDTO,
+  options: ResolveSlugOptions,
+): string | null {
+  const routedUrl = evaluateSmartRouting(
+    dto.routingRules,
+    extractSmartRoutingContext(options.headers),
+  );
+  const baseDestination = routedUrl ?? row.destinationUrl;
+  if (!baseDestination) return null;
+
+  try {
+    return buildDestinationUrl(
+      baseDestination,
+      toUrlSearchParams(options.searchParams),
+      row.forwardQueryParams,
+    );
+  } catch {
+    return null;
+  }
+}
+
 export function createResolutionService(db: AppDatabase) {
   async function resolveSlugRequest(
     rawSlug: string,
@@ -145,7 +191,7 @@ export function createResolutionService(db: AppDatabase) {
   ): Promise<SlugResolutionResult> {
     const normalized = rawSlug.trim().toLowerCase();
 
-    // Filtro rápido en memoria: evita tocar Turso para archivos estáticos, rutas reservadas o slugs inválidos.
+    // Fast in-memory guard: avoids querying Turso for static assets, reserved routes, or malformed slugs.
     if (
       normalized.length < 3 ||
       normalized.length > 100 ||
@@ -177,14 +223,41 @@ export function createResolutionService(db: AppDatabase) {
     }
 
     const now = options.now ?? new Date();
-    const inactiveReason = classifyInactiveReason(row, now.getTime());
+    const nowMs = now.getTime();
+    const dto = toLinkDTO(row, now);
+    const inactiveReason = classifyInactiveReason(row, nowMs);
+
     if (inactiveReason) {
+      if (
+        (inactiveReason === "EXPIRED" ||
+          inactiveReason === "MAX_CLICKS_REACHED") &&
+        row.expiredRedirectUrl
+      ) {
+        try {
+          const fallbackLocation = buildDestinationUrl(
+            row.expiredRedirectUrl,
+            new URLSearchParams(),
+            false,
+          );
+          return {
+            kind: "REDIRECT",
+            status: 307,
+            linkId: row.id,
+            location: fallbackLocation,
+            shouldTrackClick: false,
+          };
+        } catch {
+          // Fall through to HTTP 410 view if expiredRedirectUrl is malformed.
+        }
+      }
+
       return {
         kind: "INACTIVE_OR_EXPIRED",
         status: 410,
         reason: inactiveReason,
         slug: row.slug,
         title: row.title,
+        theme: dto.theme,
         shouldTrackClick: false,
       };
     }
@@ -194,7 +267,18 @@ export function createResolutionService(db: AppDatabase) {
       return {
         kind: "SOCIAL_BOT_OG",
         status: 200,
-        link: toLinkDTO(row, now),
+        link: dto,
+        shouldTrackClick: false,
+      };
+    }
+
+    if (row.startsAt && row.startsAt.getTime() > nowMs) {
+      return {
+        kind: "SCHEDULED_COUNTDOWN",
+        status: 200,
+        linkId: row.id,
+        link: dto,
+        startsAt: row.startsAt.toISOString(),
         shouldTrackClick: false,
       };
     }
@@ -211,7 +295,26 @@ export function createResolutionService(db: AppDatabase) {
           kind: "HUB_VIEW",
           status: 200,
           linkId: row.id,
-          link: toLinkDTO(row, now),
+          link: dto,
+          shouldTrackClick: false,
+        };
+      }
+      if (hasUnlockCookie && row.type === "DIRECT" && row.isCloaked) {
+        const unlockedCloakedUrl = resolveDirectLocation(row, dto, options);
+        if (!unlockedCloakedUrl) {
+          return {
+            kind: "NOT_FOUND",
+            status: 404,
+            slug: normalized,
+            shouldTrackClick: false,
+          };
+        }
+        return {
+          kind: "CLOAKED_VIEW",
+          status: 200,
+          linkId: row.id,
+          link: dto,
+          destinationUrl: unlockedCloakedUrl,
           shouldTrackClick: false,
         };
       }
@@ -223,6 +326,7 @@ export function createResolutionService(db: AppDatabase) {
         title: row.title,
         description: row.description,
         icon: row.icon,
+        theme: dto.theme,
         shouldTrackClick: false,
       };
     }
@@ -236,12 +340,13 @@ export function createResolutionService(db: AppDatabase) {
         kind: "HUB_VIEW",
         status: 200,
         linkId: row.id,
-        link: toLinkDTO(row, now),
+        link: dto,
         shouldTrackClick: !isPrefetch,
       };
     }
 
-    if (!row.destinationUrl) {
+    const location = resolveDirectLocation(row, dto, options);
+    if (!location) {
       return {
         kind: "NOT_FOUND",
         status: 404,
@@ -250,19 +355,14 @@ export function createResolutionService(db: AppDatabase) {
       };
     }
 
-    let location: string;
-    try {
-      location = buildDestinationUrl(
-        row.destinationUrl,
-        toUrlSearchParams(options.searchParams),
-        row.forwardQueryParams,
-      );
-    } catch {
+    if (row.isCloaked) {
       return {
-        kind: "NOT_FOUND",
-        status: 404,
-        slug: normalized,
-        shouldTrackClick: false,
+        kind: "CLOAKED_VIEW",
+        status: 200,
+        linkId: row.id,
+        link: dto,
+        destinationUrl: location,
+        shouldTrackClick: !isPrefetch,
       };
     }
 
@@ -308,6 +408,7 @@ export function createResolutionService(db: AppDatabase) {
               eq(links.id, input.linkId),
               eq(links.type, "HUB"),
               eq(links.isActive, true),
+              sql`(${links.startsAt} IS NULL OR ${links.startsAt} <= ${nowMs})`,
               sql`(${links.expiresAt} IS NULL OR ${links.expiresAt} > ${nowMs})`,
             ),
           )
@@ -326,6 +427,7 @@ export function createResolutionService(db: AppDatabase) {
             and(
               eq(links.id, input.linkId),
               eq(links.isActive, true),
+              sql`(${links.startsAt} IS NULL OR ${links.startsAt} <= ${nowMs})`,
               sql`(${links.expiresAt} IS NULL OR ${links.expiresAt} > ${nowMs})`,
               sql`(${links.maxClicks} IS NULL OR ${links.clicksCount} < ${links.maxClicks})`,
             ),
