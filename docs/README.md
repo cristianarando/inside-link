@@ -1,41 +1,63 @@
-# InsideLink (`cristianarando.dev`) — Architecture Suite & Engineering Specifications
+# InsideLink v2 — Engineering & Architecture Documentation Suite
 
-> **System:** `inside-link` (Single-Owner Link Shortener, Project Showcase HUBs, and Public Directory for `cristianarando.dev`)  
-> **Initial Architecture Date:** October 2026  
-> **Status:** Fully Implemented and Verified (`24/24` Backlog Tasks Completed; Live in Production).
-
----
-
-## 1. Executive Architectural Summary
-
-**InsideLink** is designed and implemented as an independent high-performance application built on **Next.js 16 (App Router) + Turso (libSQL/SQLite) + Drizzle ORM + Better-Auth (GitHub OAuth) + Tailwind CSS v4**, connected seamlessly to **`https://cristianarando.dev`** using **Reverse-Proxy Rewrites** without altering or endangering the existing multi-language Astro portfolio.
-
-### Core Architecture Invariants
-1. **Dual Anti-Collision Fortress:** Both the Vercel rewrite regular expression on `cristianarando.dev` and the `RESERVED_SLUGS` validation engine in `inside-link` strictly block language prefixes (`es`, `en`, `de`, `ru`, `ja` and all 2-letter ISO codes), core portfolio paths (`uses`, `cv`, `projects`, `blog`, etc.), and static file extensions. In addition, static assets are isolated through `assetPrefix` and dedicated `/_next/*` proxy rules.
-2. **Adaptive Layout + Keyset Compound Cursor Pagination:** Neither `/admin` nor `/links` loads the entire dataset into memory. They rely on monotonic **ULID** keyset pagination indexed over `(is_pinned DESC, id DESC)` combined with client-side `IntersectionObserver` triggers.
-3. **Traffic Segmentation (Human vs. Social Bot vs. Prefetch):** Humans experience sub-50ms instant redirection (`307/301`) paired with non-blocking background telemetry (`after()`). Social crawlers (`WhatsApp`, `LinkedInBot`, `Twitterbot`, `Discordbot`) receive dynamic HTML containing rich Open Graph previews without incrementing `max_clicks` or skewing analytics.
-4. **Polymorphic Link Types (`DIRECT` & `HUB`) & PIN Shield:** Links can either perform high-speed URL redirection or present a custom project micro-landing featuring multiple repository, demo, and doc destinations. Sensitive links can be protected with an `scrypt`-derived PIN check and rate-limited unlock interstitial.
+> **System:** `inside-link` — Single-Owner Shortlink Engine, Rich Project HUBs, Theme Studio & Analytics 3.0  
+> **Canonical Production Origin:** `https://links.cristianarando.dev` (Companion to `https://cristianarando.dev`)  
+> **Edition:** InsideLink v2 (100% English · Dark-Only UI · Zero External API Keys)
 
 ---
 
-## 2. Specification Reading Order & Deliverables
+## 1. Executive Summary
 
-| Document | Purpose & Scope |
-| :--- | :--- |
-| [`01-requerimientos-y-producto.md`](01-requerimientos-y-producto.md) | Blueprint audit, architectural fixes (`C-01` to `C-06`), phased roadmap (`P0`–`P3`), 24 Functional Requirements (`RF-001`..`RF-024`), and 12 Non-Functional Requirements (`RNF-001`..`RNF-012`). |
-| [`02-arquitectura-del-sistema.md`](02-arquitectura-del-sistema.md) | Locked technology stack, zero-collision rewrite routing strategy, C4 Architecture models (Levels 1, 2, and 3), and repository structure. |
-| [`03-modelo-de-datos-e-invariantes.md`](03-modelo-de-datos-e-invariantes.md) | Entity-Relationship diagrams, Turso/SQLite table dictionary (`links`, `click_events`, `pin_attempts`, `user`/`session`), composite indices, and compound keyset pagination algorithm. |
-| [`04-api-flujos-y-motor-redireccion.md`](04-api-flujos-y-motor-redireccion.md) | Slug normalization pipeline, sequence diagrams (`GET /[slug]`, PIN unlock, infinite scroll + debounce), and REST API route contracts. |
-| [`05-seguridad-operaciones-y-testing.md`](05-seguridad-operaciones-y-testing.md) | Single-owner authorization model (`ALLOWED_GITHUB_ID`), Open Redirect & XSS defense, `scrypt` hashing, privacy-first zero-raw-IP telemetry, environment variables, and testing strategy. |
-| [`06-backlog-de-tareas.md`](06-backlog-de-tareas.md) | Standardized 24-task engineering backlog (`T-001` through `T-024`) with dependency graphs, acceptance criteria, test assertions, and traceability matrix. |
-| [`implementation-status.md`](implementation-status.md) | Live execution record of the 24 engineering backlog tasks (`24/24 COMPLETE`). |
+**InsideLink v2** is a standalone, high-precision shortlink and micro-landing platform built with **Next.js 16.4.3 (App Router + `src/proxy.ts`)**, **React 19.3**, **Turso (`@libsql/client` SQLite)**, **Drizzle ORM**, **Better-Auth (GitHub OAuth)**, and **Tailwind CSS v4**.
+
+Operating on **`https://links.cristianarando.dev`**, `/` serves the public Bento Mosaic directory (`/links` permanently redirects `308` → `/`), `/[slug]` powers sub-50ms smart redirects and themed SSR project micro-landings, and `/admin` provides a keyboard-first owner console (`Cmd+K`) with real-time telemetry and visual customization.
+
+### Architecture & Request Flow Overview
+
+```mermaid
+flowchart LR
+    Visitor["Visitor / Crawler"] --> Origin["https://links.cristianarando.dev"]
+    Origin --> Proxy["Next.js 16 Proxy\n(src/proxy.ts)"]
+
+    Proxy --> Directory["GET /\nBento / Grid / List Directory"]
+    Proxy --> Resolver["GET /[slug]\nSmart Routing, Rich HUB, PIN,\nCountdown, Cloak & Bot OG"]
+    Proxy --> Admin["/admin, /analytics, /settings\nOwner Session (ALLOWED_GITHUB_ID)"]
+
+    Resolver -->|"O(1) Slug Read"| Turso[("Turso Cloud\nlibSQL / SQLite")]
+    Resolver -.->|"Next.js after() Telemetry"| Turso
+    Directory -->|"Keyset Cursor + site_settings"| Turso
+    Admin -->|"CRUD, Bulk, Backup, Scanners\n& db.batch() Analytics 3.0"| Turso
+```
 
 ---
 
-## 3. Verification & Quality Gates
+## 2. Core v2 Capabilities & Invariants
 
-Every task across the backlog has been verified with production quality gates:
-- **Strict TypeScript Validation:** `pnpm typecheck` (0 errors)
-- **Automated Test Suite:** `pnpm test` (78 tests passing across 21 test files)
-- **Production Compilation:** `pnpm build` (Zero build warnings/errors)
-- **Live Deployment:** Verified live under `https://www.cristianarando.dev`
+1. **Standalone Subdomain & Next.js 16 Proxy (`src/proxy.ts`):** Direct deployment on `links.cristianarando.dev` eliminates cross-project reverse-proxy rewrites and asset collisions while applying `nosniff`, `strict-origin-when-cross-origin`, and preview-host `noindex` headers.
+2. **Single-Owner GitHub OAuth (Zero External API Keys):** Locked fail-closed via Better-Auth `databaseHooks` to `ALLOWED_GITHUB_ID` / `ALLOWED_GITHUB_EMAIL`. External Bearer tokens are intentionally omitted.
+3. **Theme & Customization Studio (`/admin/settings` & `theme_json`):** 6 curated dark presets (`obsidian-emerald`, `midnight-cyan`, `cosmic-violet`, `solar-amber`, `crimson-oxide`, `arctic-mono`), custom `#RRGGBB` accents, surface tones (`obsidian`, `graphite`, `midnight`), card styles (`glass`, `bordered`, `minimal`), Bento/Grid/List public layouts, live status badges, and per-link theme overrides.
+4. **Rich HUB Micro-Landings (`type = 'HUB'`):** Polymorphic blocks supporting `button`, live cached `github-repo` cards (stars, forks, language), zero-tracker Click-to-Play `youtube` (`youtube-nocookie.com`) and `spotify` facades, copyable `code` snippets, and `callout` notices—all wired with per-block CTR beacons.
+5. **Smart Conditional Routing, Scheduling & Cloaking:**
+   - **Smart Routing (`routing_rules_json`):** Routes visitors dynamically by `Country`, `Accept-Language`, `Device`, and `OS`.
+   - **Scheduled Launch (`starts_at`) & Expiration Fallback (`expired_redirect_url`):** Live `dd : hh : mm : ss` countdown before launch and optional `307` fallback redirect after expiration or `max_clicks` exhaustion.
+   - **Clean Fullscreen Cloaking (`is_cloaked`) & Health Scanner:** Borderless `100vw × 100dvh` iframe mode backed by SSRF-safe `X-Frame-Options` / CSP `frame-ancestors` checks (`/api/v1/links/frame-check`) and destination latency/status probes.
+6. **Admin Productivity & `O(1)` SQL Analytics 3.0:** Global `Cmd+K` Command Palette, multi-select Bulk Actions, Click Reset, non-destructive Dry-Run JSON Backup/Restore, and single-roundtrip `db.batch` analytics featuring KPIs, period deltas, `90d` GitHub-style activity heatmap, `24h` UTC distribution, Top 10 Cities, HUB block CTR, zero-PII Live Clicks Stream, and UTF-8 CSV export.
+
+---
+
+## 3. Documentation Suite Index
+
+| Document                                                             | Scope & Engineering Contents                                                                                                                                                  |
+| :------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`01-product-requirements.md`](01-product-requirements.md)           | Product vision, v1 → v2 evolution, actor permissions, Functional Requirements (`FR-001`–`FR-017`), and Non-Functional Requirements (`NFR-001`–`NFR-006`).                     |
+| [`02-system-architecture.md`](02-system-architecture.md)             | Standalone topology, `src/proxy.ts` behavior, `after()` telemetry pipeline, C4 diagrams (Context, Container, Domain Services), and repository tree.                           |
+| [`03-data-model-and-invariants.md`](03-data-model-and-invariants.md) | SQLite/libSQL conventions, ERD (`site_settings`, `links`, `click_events`, `pin_attempts`, Better-Auth tables), JSON contracts, index registry, and keyset cursor SQL.         |
+| [`04-api-and-redirect-engine.md`](04-api-and-redirect-engine.md)     | Slug normalization & blacklist pipeline, `GET /[slug]` resolution sequence diagram, Smart Routing & Rich HUB rendering rules, and `/api/v1/*` REST contract matrix.           |
+| [`05-security-and-operations.md`](05-security-and-operations.md)     | Single-owner GitHub lock, zero-API-key policy, SSRF outbound guards, `scrypt` + HMAC PIN cookies, zero-PII telemetry, environment variables, Turso seed safety, and QA gates. |
+| [`decisions/stack-versions.md`](decisions/stack-versions.md)         | Architecture Decision Record (ADR) documenting exact pinned runtime and package versions in `package.json` and `pnpm-lock.yaml`.                                              |
+
+---
+
+## 4. Visual Showcase Assets
+
+High-DPI UI screenshots referenced in the root [`README.md`](../README.md) live in [`docs/screenshots/`](screenshots/) and can be regenerated via [`scripts/capture-screenshots.mjs`](../scripts/capture-screenshots.mjs) and [`scripts/capture-admin-screenshots.mjs`](../scripts/capture-admin-screenshots.mjs).
