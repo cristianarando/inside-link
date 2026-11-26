@@ -49,6 +49,26 @@ const DEFAULT_HUB_ITEMS: HubLinkItem[] = [
   },
 ];
 
+const VALID_REDIRECT_STATUSES = [301, 302, 307, 308] as const;
+type RedirectStatusCode = (typeof VALID_REDIRECT_STATUSES)[number];
+
+function normalizeRedirectStatus(code: number | undefined): RedirectStatusCode {
+  return VALID_REDIRECT_STATUSES.includes(code as RedirectStatusCode)
+    ? (code as RedirectStatusCode)
+    : 307;
+}
+
+/** Formats an ISO timestamp into local `YYYY-MM-DDTHH:mm` for `<input type="datetime-local">`. */
+function toLocalDatetimeInputValue(
+  isoString: string | null | undefined,
+): string {
+  if (!isoString) return "";
+  const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 export function LinkFormModal({
   open,
   initialLink,
@@ -65,7 +85,7 @@ export function LinkFormModal({
   const [description, setDescription] = useState("");
   const [type, setType] = useState<LinkType>("DIRECT");
   const [destinationUrl, setDestinationUrl] = useState("");
-  const [redirectStatus, setRedirectStatus] = useState<307 | 301>(307);
+  const [redirectStatus, setRedirectStatus] = useState<RedirectStatusCode>(307);
   const [forwardQueryParams, setForwardQueryParams] = useState(true);
   const [hubLinks, setHubLinks] = useState<HubLinkItem[]>(DEFAULT_HUB_ITEMS);
   const [category, setCategory] = useState<LinkCategory>("project");
@@ -76,6 +96,7 @@ export function LinkFormModal({
   const [isPinned, setIsPinned] = useState(false);
   const [pinInput, setPinInput] = useState("");
   const [clearExistingPin, setClearExistingPin] = useState(false);
+  const [startsAtInput, setStartsAtInput] = useState("");
   const [expiresAtInput, setExpiresAtInput] = useState("");
   const [maxClicksInput, setMaxClicksInput] = useState("");
   const [ogMode, setOgMode] = useState<OgMode>("auto");
@@ -116,7 +137,7 @@ export function LinkFormModal({
       setDescription(sourceLink.description ?? "");
       setType(sourceLink.type);
       setDestinationUrl(sourceLink.destinationUrl ?? "");
-      setRedirectStatus(sourceLink.redirectStatus === 301 ? 301 : 307);
+      setRedirectStatus(normalizeRedirectStatus(sourceLink.redirectStatus));
       setForwardQueryParams(sourceLink.forwardQueryParams);
       setHubLinks(
         sourceLink.hubLinks && sourceLink.hubLinks.length > 0
@@ -134,9 +155,8 @@ export function LinkFormModal({
       setIsActive(sourceLink.isActive);
       setIsPublic(sourceLink.isPublic);
       setIsPinned(isDuplicate ? false : sourceLink.isPinned);
-      setExpiresAtInput(
-        sourceLink.expiresAt ? sourceLink.expiresAt.slice(0, 16) : "",
-      );
+      setStartsAtInput(toLocalDatetimeInputValue(sourceLink.startsAt));
+      setExpiresAtInput(toLocalDatetimeInputValue(sourceLink.expiresAt));
       setMaxClicksInput(
         sourceLink.maxClicks !== null ? String(sourceLink.maxClicks) : "",
       );
@@ -160,6 +180,7 @@ export function LinkFormModal({
       setIsActive(true);
       setIsPublic(false);
       setIsPinned(false);
+      setStartsAtInput("");
       setExpiresAtInput("");
       setMaxClicksInput("");
       setOgImageUrl("");
@@ -329,6 +350,7 @@ export function LinkFormModal({
         isPinned,
         ogMode,
         ogImageUrl: ogMode === "custom" ? ogImageUrl.trim() || null : null,
+        startsAt: startsAtInput ? new Date(startsAtInput).toISOString() : null,
         expiresAt: expiresAtInput
           ? new Date(expiresAtInput).toISOString()
           : null,
@@ -570,12 +592,20 @@ export function LinkFormModal({
                 <select
                   value={redirectStatus}
                   onChange={(e) =>
-                    setRedirectStatus(Number(e.target.value) as 307 | 301)
+                    setRedirectStatus(
+                      normalizeRedirectStatus(Number(e.target.value)),
+                    )
                   }
                   className="rounded-lg border border-zinc-800 bg-[#111114] px-2.5 py-1 text-xs text-zinc-200 focus:border-emerald-500/60 focus:outline-none"
                 >
-                  <option value={307}>307 Temporary (Recommended)</option>
-                  <option value={301}>301 Permanent (High cache)</option>
+                  <option value={307}>
+                    307 Temporary (Preserve Method · Recommended)
+                  </option>
+                  <option value={308}>308 Permanent (Preserve Method)</option>
+                  <option value={302}>302 Found (Temporary)</option>
+                  <option value={301}>
+                    301 Moved Permanently (High cache)
+                  </option>
                 </select>
               </div>
               <label className="flex items-center gap-2 text-xs text-zinc-300">
@@ -748,7 +778,7 @@ export function LinkFormModal({
           </label>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label className="text-xs font-medium text-zinc-300">
               Access PIN {initialLink?.hasPin ? "(Configured)" : "(Optional)"}
@@ -773,17 +803,6 @@ export function LinkFormModal({
           </div>
           <div>
             <label className="text-xs font-medium text-zinc-300">
-              Expiration Date (Optional)
-            </label>
-            <Input
-              type="datetime-local"
-              value={expiresAtInput}
-              onChange={(e) => setExpiresAtInput(e.target.value)}
-              className="mt-1 text-xs"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-zinc-300">
               Max Clicks (Optional)
             </label>
             <Input
@@ -792,6 +811,28 @@ export function LinkFormModal({
               value={maxClicksInput}
               onChange={(e) => setMaxClicksInput(e.target.value)}
               placeholder="Unlimited"
+              className="mt-1 text-xs"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-zinc-300">
+              Scheduled Launch (Optional)
+            </label>
+            <Input
+              type="datetime-local"
+              value={startsAtInput}
+              onChange={(e) => setStartsAtInput(e.target.value)}
+              className="mt-1 text-xs"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-zinc-300">
+              Expiration Date (Optional)
+            </label>
+            <Input
+              type="datetime-local"
+              value={expiresAtInput}
+              onChange={(e) => setExpiresAtInput(e.target.value)}
               className="mt-1 text-xs"
             />
           </div>

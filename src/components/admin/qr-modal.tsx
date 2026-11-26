@@ -70,6 +70,11 @@ export function QrCodeModal({ open, link, onClose }: QrCodeModalProps) {
   const [pngDataUrl, setPngDataUrl] = useState<string>("");
   const [copiedUrl, setCopiedUrl] = useState(false);
 
+  useEffect(() => {
+    setRefParam("");
+    setCopiedUrl(false);
+  }, [link?.id, open]);
+
   const normalizedRef = refParam
     .trim()
     .toLowerCase()

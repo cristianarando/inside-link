@@ -175,14 +175,14 @@ export function LinkCard({
           {link.isPinned && (
             <Badge variant="amber">
               <Pin className="h-3 w-3" />
-              PIN
+              Pinned
             </Badge>
           )}
 
           {link.hasPin && (
             <Badge variant="warning">
               <Lock className="h-3 w-3" />
-              Locked
+              PIN Locked
             </Badge>
           )}
 

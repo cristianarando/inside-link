@@ -1,5 +1,6 @@
 import React from "react";
 import {
+  Activity,
   Book,
   BookOpen,
   Clock,
@@ -13,11 +14,15 @@ import {
   Lock,
   MapPin,
   MessageCircle,
+  Music,
   Palette,
   PauseCircle,
+  Pin,
   Play,
+  ShieldCheck,
   ShoppingBag,
   Sparkles,
+  Terminal,
   Users,
   Video,
 } from "lucide-react";
@@ -51,8 +56,13 @@ export const ICON_OPTIONS: IconOption[] = [
   { id: "users", label: "Community", group: "general" },
   { id: "book", label: "Notes / Blog", group: "general" },
   { id: "lock", label: "Private / PIN", group: "general" },
+  { id: "pin", label: "Pinned", group: "general" },
   { id: "clock", label: "Temporary", group: "general" },
   { id: "sparkles", label: "Featured", group: "general" },
+  { id: "terminal", label: "Terminal / Code", group: "general" },
+  { id: "music", label: "Music / Spotify", group: "general" },
+  { id: "activity", label: "Health / Status", group: "general" },
+  { id: "shield-check", label: "Verified / Safe", group: "general" },
 ];
 
 export function BrandGitHubSvg({
@@ -171,12 +181,22 @@ export function LinkIcon({
       return <Book className={className} />;
     case "lock":
       return <Lock className={className} />;
+    case "pin":
+      return <Pin className={className} />;
     case "clock":
       return <Clock className={className} />;
     case "pause-circle":
       return <PauseCircle className={className} />;
     case "sparkles":
       return <Sparkles className={className} />;
+    case "terminal":
+      return <Terminal className={className} />;
+    case "music":
+      return <Music className={className} />;
+    case "activity":
+      return <Activity className={className} />;
+    case "shield-check":
+      return <ShieldCheck className={className} />;
     case "link":
     default:
       return <Link2 className={className} />;
