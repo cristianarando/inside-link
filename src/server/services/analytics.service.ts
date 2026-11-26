@@ -22,6 +22,11 @@ export interface DailySeriesPoint {
   clicks: number;
 }
 
+export interface HourlyPoint {
+  hour: number; // 0..23 UTC
+  clicks: number;
+}
+
 export interface BreakdownItem {
   key: string;
   count: number;
@@ -43,6 +48,22 @@ export interface TopLinkItem {
   allTimeClicks: number;
 }
 
+export interface RecentClickEventDTO {
+  id: string;
+  linkId: string;
+  slug: string;
+  linkTitle: string;
+  subLinkId: string | null;
+  country: string;
+  city: string | null;
+  device: string;
+  os: string;
+  browser: string;
+  referrer: string;
+  queryParamRef: string | null;
+  clickedAt: string; // ISO string
+}
+
 export interface AnalyticsSummaryDTO {
   scope: "overview" | "link";
   linkId: string;
@@ -53,13 +74,17 @@ export interface AnalyticsSummaryDTO {
   hubSubLinkClicks: number;
   allTimeClicks: number;
   dailySeries: DailySeriesPoint[];
+  heatmap90d: DailySeriesPoint[];
+  hourlyDistribution: HourlyPoint[];
   countries: BreakdownItem[];
+  cities: BreakdownItem[];
   devices: BreakdownItem[];
   os: BreakdownItem[];
   browsers: BreakdownItem[];
   referrers: BreakdownItem[];
   queryRefs: BreakdownItem[];
   subLinks: SubLinkBreakdownItem[];
+  recentEvents: RecentClickEventDTO[];
   topLinks?: TopLinkItem[];
 }
 
@@ -188,6 +213,18 @@ export function createAnalyticsService(db: AppDatabase) {
         0,
       ),
     );
+    const HEATMAP_DAYS = 90;
+    const heatmapStartUtc = new Date(
+      Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() - (HEATMAP_DAYS - 1),
+        0,
+        0,
+        0,
+        0,
+      ),
+    );
 
     const linkFilter: SQL[] = isOverview
       ? []
@@ -214,7 +251,17 @@ export function createAnalyticsService(db: AppDatabase) {
       lt(clickEvents.clickedAt, endUtc),
     ];
 
+    const heatmapEventFilters: SQL[] = [
+      ...linkFilter,
+      isNull(clickEvents.subLinkId),
+      gte(clickEvents.clickedAt, heatmapStartUtc),
+      lt(clickEvents.clickedAt, endUtc),
+    ];
+
     const dayExpr = sql<string>`strftime('%Y-%m-%d', ${clickEvents.clickedAt} / 1000, 'unixepoch')`;
+    const hourExpr = sql<number>`CAST(strftime('%H', ${clickEvents.clickedAt} / 1000, 'unixepoch') AS INTEGER)`;
+    const cityLabelExpr = sql<string>`CASE WHEN ${clickEvents.country} != 'XX' THEN ${clickEvents.city} || ' (' || ${clickEvents.country} || ')' ELSE ${clickEvents.city} END`;
+    const cityCountExpr = sql<number>`COUNT(*)`;
     const subLinkCountExpr = sql<number>`COUNT(*)`;
     const topLinkClicksExpr = sql<number>`COUNT(${clickEvents.id})`;
 
@@ -256,11 +303,47 @@ export function createAnalyticsService(db: AppDatabase) {
       .groupBy(dayExpr)
       .orderBy(asc(dayExpr));
 
+    const heatmap90dQuery = db
+      .select({
+        date: dayExpr,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(clickEvents)
+      .where(and(...heatmapEventFilters))
+      .groupBy(dayExpr)
+      .orderBy(asc(dayExpr));
+
+    const hourlyQuery = db
+      .select({
+        hour: hourExpr,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(clickEvents)
+      .where(and(...primaryEventFilters))
+      .groupBy(hourExpr)
+      .orderBy(asc(hourExpr));
+
     const countriesQuery = breakdownQuery(
       clickEvents.country,
       primaryEventFilters,
       10,
     );
+    const citiesQuery = db
+      .select({
+        key: cityLabelExpr,
+        count: cityCountExpr,
+      })
+      .from(clickEvents)
+      .where(
+        and(
+          ...primaryEventFilters,
+          isNotNull(clickEvents.city),
+          ne(clickEvents.city, ""),
+        ),
+      )
+      .groupBy(cityLabelExpr)
+      .orderBy(desc(cityCountExpr), asc(cityLabelExpr))
+      .limit(10);
     const devicesQuery = breakdownQuery(
       clickEvents.device,
       primaryEventFilters,
@@ -334,12 +417,37 @@ export function createAnalyticsService(db: AppDatabase) {
       )
       .limit(8);
 
+    const recentEventsQuery = db
+      .select({
+        id: clickEvents.id,
+        linkId: clickEvents.linkId,
+        slug: links.slug,
+        linkTitle: links.title,
+        subLinkId: clickEvents.subLinkId,
+        country: clickEvents.country,
+        city: clickEvents.city,
+        device: clickEvents.device,
+        os: clickEvents.os,
+        browser: clickEvents.browser,
+        referrer: clickEvents.referrer,
+        queryParamRef: clickEvents.queryParamRef,
+        clickedAt: clickEvents.clickedAt,
+      })
+      .from(clickEvents)
+      .innerJoin(links, eq(clickEvents.linkId, links.id))
+      .where(and(...linkFilter))
+      .orderBy(desc(clickEvents.clickedAt), desc(clickEvents.id))
+      .limit(25);
+
     const [
       linkMetaRows,
       prevCountRows,
       hubTotalRows,
       dailyRows,
+      heatmapRows,
+      hourlyRows,
       countryRows,
+      cityRows,
       deviceRows,
       osRows,
       browserRows,
@@ -348,12 +456,16 @@ export function createAnalyticsService(db: AppDatabase) {
       subLinkRows,
       hubConfigRows,
       topLinkRows,
+      recentEventRows,
     ] = await db.batch([
       linkMetaQuery,
       prevCountQuery,
       hubTotalQuery,
       dailySeriesQuery,
+      heatmap90dQuery,
+      hourlyQuery,
       countriesQuery,
+      citiesQuery,
       devicesQuery,
       osQuery,
       browsersQuery,
@@ -362,6 +474,7 @@ export function createAnalyticsService(db: AppDatabase) {
       subLinksQuery,
       hubConfigsQuery,
       topLinksQuery,
+      recentEventsQuery,
     ]);
 
     if (!isOverview && !linkMetaRows[0]) {
@@ -404,6 +517,53 @@ export function createAnalyticsService(db: AppDatabase) {
       }),
     );
 
+    // Pre-fill all 90 UTC days ending today with 0 regardless of active KPI range
+    const heatmapMap = new Map<string, number>();
+    for (let i = 0; i < HEATMAP_DAYS; i++) {
+      const d = new Date(
+        Date.UTC(
+          heatmapStartUtc.getUTCFullYear(),
+          heatmapStartUtc.getUTCMonth(),
+          heatmapStartUtc.getUTCDate() + i,
+          0,
+          0,
+          0,
+        ),
+      );
+      heatmapMap.set(toUtcDateKey(d), 0);
+    }
+    for (const row of heatmapRows) {
+      const count = Number(row.count ?? 0);
+      if (row.date && heatmapMap.has(row.date)) {
+        heatmapMap.set(row.date, count);
+      }
+    }
+    const heatmap90d: DailySeriesPoint[] = Array.from(heatmapMap.entries()).map(
+      ([date, clicks]) => ({
+        date,
+        clicks,
+      }),
+    );
+
+    // Pre-fill all 24 UTC hours (0..23) with 0
+    const hourlyMap = new Map<number, number>();
+    for (let h = 0; h < 24; h++) {
+      hourlyMap.set(h, 0);
+    }
+    for (const row of hourlyRows) {
+      const hour = Number(row.hour);
+      const count = Number(row.count ?? 0);
+      if (Number.isInteger(hour) && hour >= 0 && hour <= 23) {
+        hourlyMap.set(hour, count);
+      }
+    }
+    const hourlyDistribution: HourlyPoint[] = Array.from(
+      hourlyMap.entries(),
+    ).map(([hour, clicks]) => ({
+      hour,
+      clicks,
+    }));
+
     const deltaPercentage =
       previousPeriodClicks === 0
         ? null
@@ -431,6 +591,25 @@ export function createAnalyticsService(db: AppDatabase) {
       };
     });
 
+    const recentEvents: RecentClickEventDTO[] = recentEventRows.map((row) => ({
+      id: row.id,
+      linkId: row.linkId,
+      slug: row.slug,
+      linkTitle: row.linkTitle,
+      subLinkId: row.subLinkId ?? null,
+      country: row.country || "XX",
+      city: row.city ?? null,
+      device: row.device || "desktop",
+      os: row.os || "Other",
+      browser: row.browser || "Other",
+      referrer: row.referrer || "Direct",
+      queryParamRef: row.queryParamRef ?? null,
+      clickedAt:
+        row.clickedAt instanceof Date
+          ? row.clickedAt.toISOString()
+          : new Date(Number(row.clickedAt)).toISOString(),
+    }));
+
     const summary: AnalyticsSummaryDTO = {
       scope: isOverview ? "overview" : "link",
       linkId: input.linkId,
@@ -441,13 +620,17 @@ export function createAnalyticsService(db: AppDatabase) {
       hubSubLinkClicks,
       allTimeClicks,
       dailySeries,
+      heatmap90d,
+      hourlyDistribution,
       countries: mapBreakdownRows(countryRows, totalClicksInRange, "XX"),
+      cities: mapBreakdownRows(cityRows, totalClicksInRange, "Unknown"),
       devices: mapBreakdownRows(deviceRows, totalClicksInRange, "desktop"),
       os: mapBreakdownRows(osRows, totalClicksInRange, "Other"),
       browsers: mapBreakdownRows(browserRows, totalClicksInRange, "Other"),
       referrers: mapBreakdownRows(referrerRows, totalClicksInRange, "Direct"),
       queryRefs: mapBreakdownRows(queryRefRows, totalClicksInRange, ""),
       subLinks,
+      recentEvents,
     };
 
     if (isOverview) {
