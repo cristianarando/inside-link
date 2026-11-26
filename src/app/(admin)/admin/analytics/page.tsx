@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, BarChart3, Download } from "lucide-react";
+import { ArrowLeft, BarChart3, Download, RefreshCw } from "lucide-react";
 import {
   AnalyticsOverviewGrid,
   exportAnalyticsSummaryCsv,
@@ -23,6 +23,7 @@ export default function GlobalAnalyticsPage() {
   const [range, setRange] = useState<AnalyticsRange>("30d");
   const [summary, setSummary] = useState<AnalyticsSummaryDTO | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshNonce, setRefreshNonce] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -44,7 +45,7 @@ export default function GlobalAnalyticsPage() {
       });
 
     return () => controller.abort();
-  }, [range]);
+  }, [range, refreshNonce]);
 
   return (
     <div className="space-y-6">
@@ -60,12 +61,12 @@ export default function GlobalAnalyticsPage() {
           <div className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5 text-emerald-400" />
             <h1 className="text-xl font-semibold tracking-tight text-white">
-              Global Telemetry &amp; Analytics
+              Global Telemetry &amp; Analytics 3.0
             </h1>
           </div>
           <p className="text-xs text-zinc-400">
-            Privacy-first aggregated metrics stored in Turso without tracking
-            cookies or raw IP addresses.
+            Privacy-first 90-day activity heatmap, 24h UTC peak distribution,
+            top cities, and live zero-PII click stream.
           </p>
         </div>
 
@@ -86,6 +87,20 @@ export default function GlobalAnalyticsPage() {
               </button>
             ))}
           </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            disabled={loading}
+            onClick={() => setRefreshNonce((n) => n + 1)}
+            aria-label="Refresh analytics"
+          >
+            <RefreshCw
+              className={`h-4 w-4 ${loading ? "animate-spin text-emerald-400" : ""}`}
+            />
+            Refresh
+          </Button>
 
           <Button
             type="button"

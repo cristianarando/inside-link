@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Download } from "lucide-react";
+import { Download, RefreshCw } from "lucide-react";
 import { Button, DialogModal, Skeleton } from "@/components/ui/primitives";
 import type { LinkDTO } from "@/lib/types/link-dto";
 import type {
@@ -29,6 +29,7 @@ export function AnalyticsDrawer({ open, link, onClose }: AnalyticsDrawerProps) {
   const [range, setRange] = useState<AnalyticsRange>("30d");
   const [summary, setSummary] = useState<AnalyticsSummaryDTO | null>(null);
   const [loading, setLoading] = useState(false);
+  const [refreshNonce, setRefreshNonce] = useState(0);
 
   useEffect(() => {
     if (!open || !link) return;
@@ -54,7 +55,7 @@ export function AnalyticsDrawer({ open, link, onClose }: AnalyticsDrawerProps) {
       });
 
     return () => controller.abort();
-  }, [open, link, range]);
+  }, [open, link, range, refreshNonce]);
 
   if (!link) return null;
 
@@ -64,7 +65,7 @@ export function AnalyticsDrawer({ open, link, onClose }: AnalyticsDrawerProps) {
       onClose={onClose}
       title={`Analytics — /${link.slug}`}
       description={link.title}
-      maxWidthClass="max-w-3xl"
+      maxWidthClass="max-w-4xl"
     >
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -89,6 +90,20 @@ export function AnalyticsDrawer({ open, link, onClose }: AnalyticsDrawerProps) {
                 </button>
               ))}
             </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={loading}
+              onClick={() => setRefreshNonce((n) => n + 1)}
+              aria-label="Refresh link analytics"
+            >
+              <RefreshCw
+                className={`h-3.5 w-3.5 ${loading ? "animate-spin text-emerald-400" : ""}`}
+              />
+              Refresh
+            </Button>
 
             <Button
               type="button"
