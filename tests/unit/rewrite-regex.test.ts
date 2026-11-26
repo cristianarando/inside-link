@@ -16,7 +16,7 @@ describe("Standalone Subdomain Deployment (links.cristianarando.dev)", () => {
     ]) {
       expect(
         isReservedSlug(slug),
-        `El slug "${slug}" ya no debe estar bloqueado tras desacoplar my-portfolio`,
+        `Slug "${slug}" should no longer be blocked after decoupling my-portfolio`,
       ).toBe(false);
     }
 
@@ -30,12 +30,12 @@ describe("Standalone Subdomain Deployment (links.cristianarando.dev)", () => {
     ]) {
       expect(
         isReservedSlug(systemSlug),
-        `La ruta de sistema "${systemSlug}" debe permanecer reservada`,
+        `System route "${systemSlug}" must remain reserved`,
       ).toBe(true);
     }
   });
 
-  it("detecta dominios técnicos *.vercel.app para inyectar X-Robots-Tag: noindex, nofollow", () => {
+  it("detects *.vercel.app technical preview domains to inject X-Robots-Tag: noindex, nofollow", () => {
     expect(isTechnicalPreviewHost("inside-link-cris.vercel.app")).toBe(true);
     expect(isTechnicalPreviewHost("inside-link-git-main.vercel.app:443")).toBe(
       true,

@@ -77,7 +77,7 @@ describe("Slug Resolution Service & GET /[slug] Route Integration", () => {
 
   it("forwards incoming query parameters safely when forwardQueryParams is true and preserves target params", async () => {
     await ctx.linkService.createLink({
-      slug: "repo-con-params",
+      slug: "repo-with-params",
       title: "Repo",
       type: "DIRECT",
       destinationUrl:
@@ -86,15 +86,15 @@ describe("Slug Resolution Service & GET /[slug] Route Integration", () => {
     });
 
     await ctx.linkService.createLink({
-      slug: "repo-sin-params",
-      title: "Repo sin params",
+      slug: "repo-no-params",
+      title: "Repo without params",
       type: "DIRECT",
       destinationUrl: "https://github.com/cristianarando/inside-link",
       forwardQueryParams: false,
     });
 
     const forwarded = await ctx.resolutionService.resolveSlugRequest(
-      "repo-con-params",
+      "repo-with-params",
       {
         searchParams: new URLSearchParams("ref=cv&utm_medium=bio&tab=hacked"),
       },
@@ -113,7 +113,7 @@ describe("Slug Resolution Service & GET /[slug] Route Integration", () => {
     }
 
     const notForwarded = await ctx.resolutionService.resolveSlugRequest(
-      "repo-sin-params",
+      "repo-no-params",
       {
         searchParams: new URLSearchParams("ref=cv&utm_medium=bio"),
       },
@@ -129,8 +129,8 @@ describe("Slug Resolution Service & GET /[slug] Route Integration", () => {
 
   it("returns 404 NOT_FOUND for unknown, reserved or static-file slugs", async () => {
     const unknown = await handleSlugGet(
-      new Request("https://cristianarando.dev/no-existe"),
-      "no-existe",
+      new Request("https://cristianarando.dev/does-not-exist"),
+      "does-not-exist",
       ctx.resolutionService,
     );
     expect(unknown.status).toBe(404);
@@ -145,63 +145,63 @@ describe("Slug Resolution Service & GET /[slug] Route Integration", () => {
 
   it("returns 410 Gone for paused, date-expired or click-exhausted links", async () => {
     await ctx.linkService.createLink({
-      slug: "enlace-pausado",
-      title: "Pausado",
+      slug: "paused-link",
+      title: "Paused",
       type: "DIRECT",
       destinationUrl: "https://example.com",
       isActive: false,
     });
 
     await ctx.linkService.createLink({
-      slug: "enlace-vencido",
-      title: "Vencido",
+      slug: "expired-link",
+      title: "Expired",
       type: "DIRECT",
       destinationUrl: "https://example.com",
       expiresAt: new Date(Date.now() - 60_000),
     });
 
     await ctx.linkService.createLink({
-      slug: "enlace-un-clic",
-      title: "Un solo clic",
+      slug: "single-click-link",
+      title: "Single click",
       type: "DIRECT",
       destinationUrl: "https://example.com/one-shot",
       maxClicks: 1,
     });
 
     const pausedRes = await handleSlugGet(
-      new Request("https://cristianarando.dev/enlace-pausado"),
-      "enlace-pausado",
+      new Request("https://cristianarando.dev/paused-link"),
+      "paused-link",
       ctx.resolutionService,
     );
     expect(pausedRes.status).toBe(410);
     expect(pausedRes.headers.get("Location")).toBeNull();
 
     const expiredRes = await handleSlugGet(
-      new Request("https://cristianarando.dev/enlace-vencido"),
-      "enlace-vencido",
+      new Request("https://cristianarando.dev/expired-link"),
+      "expired-link",
       ctx.resolutionService,
     );
     expect(expiredRes.status).toBe(410);
 
-    // Primer clic humano en enlace con maxClicks = 1: redirige con 307
+    // First human click on link with maxClicks = 1: redirects with 307
     const firstClick = await handleSlugGet(
-      new Request("https://cristianarando.dev/enlace-un-clic", {
+      new Request("https://cristianarando.dev/single-click-link", {
         headers: { "user-agent": "Mozilla/5.0 Chrome/130.0" },
       }),
-      "enlace-un-clic",
+      "single-click-link",
       ctx.resolutionService,
     );
     expect(firstClick.status).toBe(307);
 
-    // Esperar un tick para que el tracking asíncrono termine en memoria
+    // Wait a tick for async click tracking to finish in memory
     await new Promise((r) => setTimeout(r, 25));
 
-    // Segundo clic humano: ahora responde 410 Gone porque alcanzó maxClicks = 1
+    // Second human click: now returns 410 Gone because maxClicks = 1 was reached
     const secondClick = await handleSlugGet(
-      new Request("https://cristianarando.dev/enlace-un-clic", {
+      new Request("https://cristianarando.dev/single-click-link", {
         headers: { "user-agent": "Mozilla/5.0 Chrome/130.0" },
       }),
-      "enlace-un-clic",
+      "single-click-link",
       ctx.resolutionService,
     );
     expect(secondClick.status).toBe(410);
@@ -209,55 +209,55 @@ describe("Slug Resolution Service & GET /[slug] Route Integration", () => {
 
   it("excludes prefetch requests and social bots from incrementing clicksCount or exhausting maxClicks", async () => {
     const created = await ctx.linkService.createLink({
-      slug: "promo-unica",
-      title: "Promo Única",
-      description: "Descripción para Open Graph",
+      slug: "unique-promo",
+      title: "Unique Promo",
+      description: "Description for Open Graph",
       type: "DIRECT",
       destinationUrl: "https://example.com/promo",
       maxClicks: 1,
     });
 
-    // 1. Bot de WhatsApp previsualiza el enlace
+    // 1. WhatsApp bot previews the link
     const botRes = await handleSlugGet(
-      new Request("https://cristianarando.dev/promo-unica", {
+      new Request("https://cristianarando.dev/unique-promo", {
         headers: { "user-agent": "WhatsApp/2.24.1.78 A" },
       }),
-      "promo-unica",
+      "unique-promo",
       ctx.resolutionService,
     );
     expect(botRes.status).toBe(200);
     const botHtml = await botRes.text();
-    expect(botHtml).toContain('property="og:title" content="Promo Única"');
+    expect(botHtml).toContain('property="og:title" content="Unique Promo"');
 
-    // 2. Navegador hace prefetch del enlace
+    // 2. Browser prefetches the link
     const prefetchRes = await handleSlugGet(
-      new Request("https://cristianarando.dev/promo-unica", {
+      new Request("https://cristianarando.dev/unique-promo", {
         headers: {
           "user-agent": "Mozilla/5.0 Chrome/130.0",
           purpose: "prefetch",
         },
       }),
-      "promo-unica",
+      "unique-promo",
       ctx.resolutionService,
     );
     expect(prefetchRes.status).toBe(307);
 
     await new Promise((r) => setTimeout(r, 25));
 
-    // Verificar que clicksCount sigue en 0 tras el bot y el prefetch
+    // Verify clicksCount remains 0 after bot and prefetch requests
     const linkBeforeHuman = await ctx.linkService.getLinkById(created.id);
     expect(linkBeforeHuman?.clicksCount).toBe(0);
 
-    // 3. Visitante humano real abre el enlace
+    // 3. Real human visitor opens the link
     const humanRes = await handleSlugGet(
-      new Request("https://cristianarando.dev/promo-unica?ref=whatsapp_chat", {
+      new Request("https://cristianarando.dev/unique-promo?ref=whatsapp_chat", {
         headers: {
           "user-agent":
             "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Safari/604.1",
           "x-vercel-ip-country": "BO",
         },
       }),
-      "promo-unica",
+      "unique-promo",
       ctx.resolutionService,
     );
     expect(humanRes.status).toBe(307);

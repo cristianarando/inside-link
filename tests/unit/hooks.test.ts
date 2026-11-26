@@ -26,15 +26,15 @@ describe("Debounce Controller & Hook Logic (300ms)", () => {
     vi.advanceTimersByTime(100);
     controller.schedule("gui");
     vi.advanceTimersByTime(150);
-    controller.schedule("guia");
+    controller.schedule("guide");
 
-    // Aún no han pasado 300ms desde el último cambio
+    // 300ms has not yet elapsed since the last update
     vi.advanceTimersByTime(299);
     expect(emitted).toEqual([]);
 
-    // Al cumplirse los 300ms, emite únicamente "guia"
+    // Once 300ms elapses, only "guide" is emitted
     vi.advanceTimersByTime(1);
-    expect(emitted).toEqual(["guia"]);
+    expect(emitted).toEqual(["guide"]);
   });
 
   it("cancels pending emissions cleanly on unmount/cancel", () => {
@@ -43,7 +43,7 @@ describe("Debounce Controller & Hook Logic (300ms)", () => {
       emitted.push(v),
     );
 
-    controller.schedule("pendiente");
+    controller.schedule("pending");
     vi.advanceTimersByTime(150);
     controller.cancel();
     vi.advanceTimersByTime(500);
@@ -115,7 +115,7 @@ describe("Infinite Scroll Observer & Guard Logic", () => {
 
     expect(storedCallback).not.toBeNull();
     storedCallback!([{ isIntersecting: true }]);
-    storedCallback!([{ isIntersecting: true }]); // duplicado en el mismo ciclo ignorado
+    storedCallback!([{ isIntersecting: true }]); // duplicate intersection in the same cycle is ignored
     expect(loadMoreCalls).toBe(1);
 
     cleanup();

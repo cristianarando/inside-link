@@ -23,24 +23,24 @@ async function setupEnv() {
   };
 }
 
-describe("T-017: Controles de Caducidad Automática (expires_at y max_clicks)", () => {
-  it("redirige en los primeros 2 clics humanos cuando max_clicks = 2 y responde 410 Gone en el 3.º", async () => {
+describe("Automatic Expiration Controls (expires_at and max_clicks)", () => {
+  it("redirects on the first 2 human clicks when max_clicks = 2 and responds 410 Gone on the 3rd", async () => {
     const { client, linkService, resolutionService } = await setupEnv();
     try {
       await linkService.createLink({
-        slug: "pase-vip-2",
+        slug: "vip-pass-2",
         type: "DIRECT",
         destinationUrl: "https://cristianarando.dev/vip",
-        title: "Pase VIP (2 accesos)",
+        title: "VIP Pass (2 uses)",
         maxClicks: 2,
       });
 
       const makeHumanRequest = () =>
         handleSlugGet(
-          new Request("https://cristianarando.dev/pase-vip-2", {
+          new Request("https://cristianarando.dev/vip-pass-2", {
             headers: { "user-agent": "Mozilla/5.0 Chrome/135.0" },
           }),
-          "pase-vip-2",
+          "vip-pass-2",
           resolutionService,
         );
 
@@ -63,22 +63,22 @@ describe("T-017: Controles de Caducidad Automática (expires_at y max_clicks)", 
     }
   });
 
-  it("responde 410 Gone cuando expires_at está en el pasado", async () => {
+  it("responds 410 Gone when expires_at is in the past", async () => {
     const { client, linkService, resolutionService } = await setupEnv();
     try {
       await linkService.createLink({
-        slug: "promo-vencida",
+        slug: "expired-promo",
         type: "DIRECT",
         destinationUrl: "https://cristianarando.dev/promo",
-        title: "Promo Vencida",
+        title: "Expired Promo",
         expiresAt: new Date(Date.now() - 60_000).toISOString(),
       });
 
       const res = await handleSlugGet(
-        new Request("https://cristianarando.dev/promo-vencida", {
+        new Request("https://cristianarando.dev/expired-promo", {
           headers: { "user-agent": "Mozilla/5.0 Chrome/135.0" },
         }),
-        "promo-vencida",
+        "expired-promo",
         resolutionService,
       );
       expect(res.status).toBe(410);

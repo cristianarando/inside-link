@@ -55,14 +55,14 @@ describe("Phase P1 Gate — End-to-End MVP Flow Integration", () => {
   });
 
   it("executes the complete P1 MVP lifecycle: create -> list -> pin -> redirect + telemetry -> pause -> block", async () => {
-    // 1. Crear dos enlaces mediante el endpoint POST /api/v1/links
+    // 1. Create two links via POST /api/v1/links
     const res1 = await handleCreateLinkPost(
       new Request("https://cristianarando.dev/api/v1/links", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          slug: "primer-enlace",
-          title: "Primer Enlace",
+          slug: "first-link",
+          title: "First Link",
           destinationUrl: "https://github.com/cristianarando/one",
         }),
       }),
@@ -76,8 +76,8 @@ describe("Phase P1 Gate — End-to-End MVP Flow Integration", () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          slug: "segundo-enlace",
-          title: "Segundo Enlace",
+          slug: "second-link",
+          title: "Second Link",
           destinationUrl: "https://github.com/cristianarando/two",
         }),
       }),
@@ -86,18 +86,18 @@ describe("Phase P1 Gate — End-to-End MVP Flow Integration", () => {
     expect(res2.status).toBe(201);
     const link2 = (await res2.json()) as LinkDTO;
 
-    // 2. Listar en primera página por cursor (orden descendente por ULID: segundo-enlace primero)
+    // 2. List first page by cursor (descending ULID order: second-link first)
     const listBeforePin = await handleListLinksGet(
       new Request("https://cristianarando.dev/api/v1/links?limit=12"),
       adminDeps,
     );
     const pageBefore = await listBeforePin.json();
     expect(pageBefore.items.map((l: LinkDTO) => l.slug)).toEqual([
-      "segundo-enlace",
-      "primer-enlace",
+      "second-link",
+      "first-link",
     ]);
 
-    // 3. Fijar arriba `primer-enlace` (isPinned = true) y verificar reordenamiento tanto en cliente como en servidor
+    // 3. Pin `first-link` (isPinned = true) and verify reordering on both client and server
     const pinRes = await handleUpdateLinkPatch(
       new Request(`https://cristianarando.dev/api/v1/links/${link1.id}`, {
         method: "PATCH",
@@ -112,8 +112,8 @@ describe("Phase P1 Gate — End-to-End MVP Flow Integration", () => {
 
     const clientSorted = sortLinksByKeyset([link2, pinnedLink1]);
     expect(clientSorted.map((l) => l.slug)).toEqual([
-      "primer-enlace",
-      "segundo-enlace",
+      "first-link",
+      "second-link",
     ]);
 
     const listAfterPin = await handleListLinksGet(
@@ -122,20 +122,20 @@ describe("Phase P1 Gate — End-to-End MVP Flow Integration", () => {
     );
     const pageAfter = await listAfterPin.json();
     expect(pageAfter.items.map((l: LinkDTO) => l.slug)).toEqual([
-      "primer-enlace",
-      "segundo-enlace",
+      "first-link",
+      "second-link",
     ]);
 
-    // 4. Resolver GET /primer-enlace?ref=cv verificando redirección 307 y conteo de clic
+    // 4. Resolve GET /first-link?ref=cv verifying 307 redirect and click count increment
     const redirectRes = await handleSlugGet(
-      new Request("https://cristianarando.dev/primer-enlace?ref=cv", {
+      new Request("https://cristianarando.dev/first-link?ref=cv", {
         headers: {
           "user-agent":
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) Chrome/130.0",
           "x-vercel-ip-country": "BO",
         },
       }),
-      "primer-enlace",
+      "first-link",
       resolution,
     );
     expect(redirectRes.status).toBe(307);
@@ -148,7 +148,7 @@ describe("Phase P1 Gate — End-to-End MVP Flow Integration", () => {
     const updatedLink1 = await service.getLinkById(link1.id);
     expect(updatedLink1?.clicksCount).toBe(1);
 
-    // 5. Pausar enlace (isActive = false) y verificar que GET /primer-enlace devuelve 410 Gone
+    // 5. Pause link (isActive = false) and verify GET /first-link returns 410 Gone
     const pauseRes = await handleUpdateLinkPatch(
       new Request(`https://cristianarando.dev/api/v1/links/${link1.id}`, {
         method: "PATCH",
@@ -161,8 +161,8 @@ describe("Phase P1 Gate — End-to-End MVP Flow Integration", () => {
     expect(pauseRes.status).toBe(200);
 
     const blockedRes = await handleSlugGet(
-      new Request("https://cristianarando.dev/primer-enlace"),
-      "primer-enlace",
+      new Request("https://cristianarando.dev/first-link"),
+      "first-link",
       resolution,
     );
     expect(blockedRes.status).toBe(410);

@@ -25,45 +25,45 @@ async function setupEnv() {
   };
 }
 
-describe("T-021: Directorio Público (/links) y Aislamiento de Enlaces Privados/Inactivos", () => {
-  it("devuelve únicamente enlaces con is_public=true, activos y vigentes, sin exponer campos privados", async () => {
+describe("Public Directory (/) & Private/Inactive Link Isolation", () => {
+  it("returns only public, active, non-expired links without exposing private fields", async () => {
     const { client, linkService } = await setupEnv();
     try {
       await linkService.createLink({
-        slug: "proyecto-publico",
+        slug: "public-project",
         type: "DIRECT",
         destinationUrl: "https://github.com/Crisutf/public-repo",
-        title: "Proyecto Público",
+        title: "Public Project",
         category: "project",
         isPublic: true,
         isActive: true,
       });
 
       await linkService.createLink({
-        slug: "enlace-privado",
+        slug: "private-link",
         type: "DIRECT",
         destinationUrl: "https://docs.cristianarando.dev/secret",
-        title: "Enlace Privado",
+        title: "Private Link",
         category: "project",
         isPublic: false,
         isActive: true,
       });
 
       await linkService.createLink({
-        slug: "enlace-pausado",
+        slug: "paused-link",
         type: "DIRECT",
         destinationUrl: "https://github.com/Crisutf/paused",
-        title: "Enlace Pausado",
+        title: "Paused Link",
         category: "project",
         isPublic: true,
         isActive: false,
       });
 
       await linkService.createLink({
-        slug: "enlace-vencido",
+        slug: "expired-link",
         type: "DIRECT",
         destinationUrl: "https://github.com/Crisutf/expired",
-        title: "Enlace Vencido",
+        title: "Expired Link",
         category: "project",
         isPublic: true,
         isActive: true,
@@ -80,9 +80,9 @@ describe("T-021: Directorio Público (/links) y Aislamiento de Enlaces Privados/
       expect(res.status).toBe(200);
       const page = (await res.json()) as PaginatedResult<PublicLinkDTO>;
       expect(page.items).toHaveLength(1);
-      expect(page.items[0]?.slug).toBe("proyecto-publico");
+      expect(page.items[0]?.slug).toBe("public-project");
 
-      // Verificar que ningún campo administrativo sensible se filtre en el JSON público
+      // Ensure no sensitive administrative fields leak into the public JSON payload
       const rawJson = JSON.stringify(page.items[0]);
       expect(rawJson).not.toContain("passwordHash");
       expect(rawJson).not.toContain("maxClicks");

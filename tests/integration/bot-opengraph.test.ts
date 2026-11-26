@@ -23,26 +23,26 @@ async function setupEnv() {
   };
 }
 
-describe("T-014: Inyección Dinámica de Open Graph para Bots de Redes Sociales", () => {
-  it("devuelve 200 OK con meta tags Open Graph ante WhatsApp/LinkedInBot sin consumir max_clicks", async () => {
+describe("Dynamic Open Graph Injection for Social Preview Crawlers", () => {
+  it("returns 200 OK with Open Graph meta tags for WhatsApp/LinkedInBot without consuming max_clicks", async () => {
     const { client, linkService, resolutionService } = await setupEnv();
     try {
       await linkService.createLink({
-        slug: "charla-exclusiva",
+        slug: "exclusive-talk",
         type: "DIRECT",
         destinationUrl: "https://example.com/secret-stream",
-        title: "Charla de Arquitectura Edge",
-        description: "Sesión en vivo sobre Next.js 16 y Turso",
-        ogImageUrl: "https://cristianarando.dev/og/charla.png",
+        title: "Edge Architecture Talk",
+        description: "Live session on Next.js 16 and Turso",
+        ogImageUrl: "https://cristianarando.dev/og/talk.png",
         maxClicks: 1,
       });
 
-      // 1. Petición de WhatsApp Bot
+      // 1. WhatsApp Bot request
       const whatsappRes = await handleSlugGet(
-        new Request("https://cristianarando.dev/charla-exclusiva", {
+        new Request("https://cristianarando.dev/exclusive-talk", {
           headers: { "user-agent": "WhatsApp/2.24.1 i" },
         }),
-        "charla-exclusiva",
+        "exclusive-talk",
         resolutionService,
       );
 
@@ -50,39 +50,39 @@ describe("T-014: Inyección Dinámica de Open Graph para Bots de Redes Sociales"
       expect(whatsappRes.headers.get("content-type")).toContain("text/html");
       const html = await whatsappRes.text();
       expect(html).toContain(
-        'property="og:title" content="Charla de Arquitectura Edge"',
+        'property="og:title" content="Edge Architecture Talk"',
       );
       expect(html).toContain(
-        'property="og:description" content="Sesión en vivo sobre Next.js 16 y Turso"',
+        'property="og:description" content="Live session on Next.js 16 and Turso"',
       );
       expect(html).toContain(
-        'property="og:image" content="https://cristianarando.dev/og/charla.png"',
+        'property="og:image" content="https://cristianarando.dev/og/talk.png"',
       );
       expect(html).toContain(
         'name="twitter:card" content="summary_large_image"',
       );
 
-      // 2. Petición de LinkedInBot
+      // 2. LinkedInBot request
       const linkedinRes = await handleSlugGet(
-        new Request("https://cristianarando.dev/charla-exclusiva", {
+        new Request("https://cristianarando.dev/exclusive-talk", {
           headers: {
             "user-agent": "LinkedInBot/1.0 (compatible; Mozilla/5.0)",
           },
         }),
-        "charla-exclusiva",
+        "exclusive-talk",
         resolutionService,
       );
       expect(linkedinRes.status).toBe(200);
 
-      // Verificar que clicks_count sigue en 0 y el visitante humano aún puede usar su único clic
-      const beforeHuman = await linkService.getLinkBySlug("charla-exclusiva");
+      // Verify clicks_count remains 0 and the human visitor can still claim the single allowed click
+      const beforeHuman = await linkService.getLinkBySlug("exclusive-talk");
       expect(beforeHuman?.clicksCount).toBe(0);
 
       const humanRes = await handleSlugGet(
-        new Request("https://cristianarando.dev/charla-exclusiva", {
+        new Request("https://cristianarando.dev/exclusive-talk", {
           headers: { "user-agent": "Mozilla/5.0 Chrome/135.0" },
         }),
-        "charla-exclusiva",
+        "exclusive-talk",
         resolutionService,
       );
       expect(humanRes.status).toBe(307);

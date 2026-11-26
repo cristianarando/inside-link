@@ -30,28 +30,28 @@ async function setupE2EEnv() {
   };
 }
 
-describe("T-023 E2E (Admin, HUB, PIN y Auditoría de Seguridad/Accesibilidad)", () => {
-  it("protege /api/v1/links sin sesión, ejecuta flujo HUB + desbloqueo PIN y audita atributos semánticos/a11y", async () => {
+describe("E2E (Admin, HUB, PIN & Security/Accessibility Audit)", () => {
+  it("protects /api/v1/links without session, runs HUB + PIN unlock flow, and audits semantic/a11y attributes", async () => {
     const { client, db, linkService, resolutionService, analyticsService } =
       await setupE2EEnv();
     try {
-      // 1. Petición anónima a /api/v1/links debe ser rechazada con 401
+      // 1. Anonymous request to /api/v1/links must be rejected with 401
       const anonRes = await listAdminLinksAnonymousGet(
         new NextRequest("https://cristianarando.dev/api/v1/links"),
       );
       expect(anonRes.status).toBe(401);
 
-      // 2. Crear Micro-Landing HUB protegida con PIN
+      // 2. Create PIN-protected HUB micro-landing
       const hub = await linkService.createLink({
-        slug: "arquitectura-privada",
+        slug: "private-architecture",
         type: "HUB",
-        title: "Arquitectura Interna 2026",
-        description: "Documentación técnica protegida con PIN.",
+        title: "Internal Architecture 2026",
+        description: "PIN-protected technical documentation.",
         pin: "9876",
         hubLinks: [
           {
             id: "doc-rfc",
-            label: "Ver RFC de Diseño",
+            label: "View Design RFC",
             url: "https://docs.cristianarando.dev/rfc-2026",
             icon: "file-text",
             variant: "primary",
@@ -59,12 +59,12 @@ describe("T-023 E2E (Admin, HUB, PIN y Auditoría de Seguridad/Accesibilidad)", 
         ],
       });
 
-      // 3. Visitar /arquitectura-privada muestra vista PIN accesible (role="alert", aria-label) sin filtrar URLs
+      // 3. Visiting /private-architecture renders accessible PIN view (role="alert", aria-label) without leaking URLs
       const lockedPage = await handleSlugGet(
-        new Request("https://cristianarando.dev/arquitectura-privada", {
+        new Request("https://cristianarando.dev/private-architecture", {
           headers: { "user-agent": "Mozilla/5.0 Chrome/135.0" },
         }),
-        "arquitectura-privada",
+        "private-architecture",
         resolutionService,
       );
       expect(lockedPage.status).toBe(200);
@@ -73,10 +73,10 @@ describe("T-023 E2E (Admin, HUB, PIN y Auditoría de Seguridad/Accesibilidad)", 
       expect(lockedHtml).toContain('role="alert"');
       expect(lockedHtml).not.toContain("rfc-2026");
 
-      // 4. Intento de PIN erróneo -> 401, seguido de PIN correcto -> 200 OK con hubLinks
+      // 4. Wrong PIN attempt -> 401, followed by correct PIN -> 200 OK with hubLinks
       const failedUnlock = await handlePinUnlockPost(
         new Request(
-          "https://cristianarando.dev/api/v1/slug/arquitectura-privada/unlock",
+          "https://cristianarando.dev/api/v1/slug/private-architecture/unlock",
           {
             method: "POST",
             headers: {
@@ -86,14 +86,14 @@ describe("T-023 E2E (Admin, HUB, PIN y Auditoría de Seguridad/Accesibilidad)", 
             body: JSON.stringify({ pin: "0000" }),
           },
         ),
-        "arquitectura-privada",
+        "private-architecture",
         { db, resolution: resolutionService },
       );
       expect(failedUnlock.status).toBe(401);
 
       const okUnlock = await handlePinUnlockPost(
         new Request(
-          "https://cristianarando.dev/api/v1/slug/arquitectura-privada/unlock",
+          "https://cristianarando.dev/api/v1/slug/private-architecture/unlock",
           {
             method: "POST",
             headers: {
@@ -105,7 +105,7 @@ describe("T-023 E2E (Admin, HUB, PIN y Auditoría de Seguridad/Accesibilidad)", 
             body: JSON.stringify({ pin: "9876" }),
           },
         ),
-        "arquitectura-privada",
+        "private-architecture",
         { db, resolution: resolutionService },
       );
       expect(okUnlock.status).toBe(200);
@@ -120,7 +120,7 @@ describe("T-023 E2E (Admin, HUB, PIN y Auditoría de Seguridad/Accesibilidad)", 
       // 5. Reject HUB sub-link click without signed PIN unlock cookie (401)
       const unauthSubClick = await handleHubSubLinkClickPost(
         new Request(
-          "https://links.cristianarando.dev/api/v1/slug/arquitectura-privada/hub-click",
+          "https://links.cristianarando.dev/api/v1/slug/private-architecture/hub-click",
           {
             method: "POST",
             headers: {
@@ -130,7 +130,7 @@ describe("T-023 E2E (Admin, HUB, PIN y Auditoría de Seguridad/Accesibilidad)", 
             body: JSON.stringify({ subLinkId: "doc-rfc" }),
           },
         ),
-        "arquitectura-privada",
+        "private-architecture",
         { db, resolution: resolutionService },
       );
       expect(unauthSubClick.status).toBe(401);
@@ -143,7 +143,7 @@ describe("T-023 E2E (Admin, HUB, PIN y Auditoría de Seguridad/Accesibilidad)", 
 
       const subClick = await handleHubSubLinkClickPost(
         new Request(
-          "https://links.cristianarando.dev/api/v1/slug/arquitectura-privada/hub-click",
+          "https://links.cristianarando.dev/api/v1/slug/private-architecture/hub-click",
           {
             method: "POST",
             headers: {
@@ -155,7 +155,7 @@ describe("T-023 E2E (Admin, HUB, PIN y Auditoría de Seguridad/Accesibilidad)", 
             body: JSON.stringify({ subLinkId: "doc-rfc" }),
           },
         ),
-        "arquitectura-privada",
+        "private-architecture",
         { db, resolution: resolutionService },
       );
       expect(subClick.status).toBe(200);

@@ -26,28 +26,28 @@ async function setupEnv() {
   };
 }
 
-describe("T-015: Modo Micro-Landing de Proyecto (type = 'HUB')", () => {
-  it("renderiza título, descripción, tags y botones en GET /[slug] y registra sub_link_id al pulsar un botón", async () => {
+describe("Project Micro-Landing Mode (type = 'HUB')", () => {
+  it("renders title, description, tags, and buttons on GET /[slug] and records sub_link_id on button click", async () => {
     const { client, db, linkService, resolutionService } = await setupEnv();
     try {
       const hub = await linkService.createLink({
-        slug: "proyecto-guia-turistica",
+        slug: "smart-travel-guide",
         type: "HUB",
-        title: "Guía Turística Inteligente",
-        description: "Plataforma full-stack con mapas interactivos.",
+        title: "Smart Travel Guide",
+        description: "Full-stack platform with interactive maps.",
         tags: ["nextjs", "turso", "tailwind"],
         hubLinks: [
           {
             id: "btn-repo",
-            label: "Repositorio en GitHub",
-            url: "https://github.com/Crisutf/guia-turistica",
+            label: "GitHub Repository",
+            url: "https://github.com/Crisutf/smart-travel-guide",
             icon: "github",
             variant: "primary",
           },
           {
             id: "btn-demo",
-            label: "Demo en Vivo",
-            url: "https://guia.cristianarando.dev",
+            label: "Live Demo",
+            url: "https://guide.cristianarando.dev",
             icon: "globe",
             variant: "secondary",
           },
@@ -55,25 +55,25 @@ describe("T-015: Modo Micro-Landing de Proyecto (type = 'HUB')", () => {
       });
 
       const pageRes = await handleSlugGet(
-        new Request("https://cristianarando.dev/proyecto-guia-turistica", {
+        new Request("https://cristianarando.dev/smart-travel-guide", {
           headers: { "user-agent": "Mozilla/5.0 Chrome/135.0" },
         }),
-        "proyecto-guia-turistica",
+        "smart-travel-guide",
         resolutionService,
       );
 
       expect(pageRes.status).toBe(200);
       const html = await pageRes.text();
-      expect(html).toContain("Guía Turística Inteligente");
-      expect(html).toContain("Plataforma full-stack con mapas interactivos.");
+      expect(html).toContain("Smart Travel Guide");
+      expect(html).toContain("Full-stack platform with interactive maps.");
       expect(html).toContain("#nextjs");
-      expect(html).toContain("Repositorio en GitHub");
-      expect(html).toContain("Demo en Vivo");
+      expect(html).toContain("GitHub Repository");
+      expect(html).toContain("Live Demo");
 
-      // Simular clic en el botón "btn-demo"
+      // Simulate click on the "btn-demo" button
       const clickRes = await handleHubSubLinkClickPost(
         new Request(
-          "https://cristianarando.dev/api/v1/slug/proyecto-guia-turistica/hub-click",
+          "https://cristianarando.dev/api/v1/slug/smart-travel-guide/hub-click",
           {
             method: "POST",
             headers: {
@@ -83,7 +83,7 @@ describe("T-015: Modo Micro-Landing de Proyecto (type = 'HUB')", () => {
             body: JSON.stringify({ subLinkId: "btn-demo" }),
           },
         ),
-        "proyecto-guia-turistica",
+        "smart-travel-guide",
         { db, resolution: resolutionService },
       );
 

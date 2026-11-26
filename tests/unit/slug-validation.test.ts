@@ -9,11 +9,11 @@ import { isReservedSlug } from "@/lib/constants/reserved-slugs";
 
 describe("Slug Normalization & Anti-Collision Engine", () => {
   it("normalizes spaces to hyphens and strips diacritics", () => {
-    expect(normalizeSlug("  Mi Guía Turística 2026  ")).toBe(
-      "mi-guia-turistica-2026",
+    expect(normalizeSlug("  Café Crème Brûlée 2026  ")).toBe(
+      "cafe-creme-brulee-2026",
     );
-    expect(normalizeSlug("Proyecto---Especial")).toBe("proyecto-especial");
-    expect(normalizeSlug("--inicio--")).toBe("inicio");
+    expect(normalizeSlug("Project---Special")).toBe("project-special");
+    expect(normalizeSlug("--start--")).toBe("start");
   });
 
   it("allows former portfolio and ISO language slugs when they meet slug length rules", () => {
@@ -80,9 +80,9 @@ describe("Slug Normalization & Anti-Collision Engine", () => {
       reason: "INVALID",
     });
     expect(classifySlug("x1")).toMatchObject({ ok: false, reason: "INVALID" });
-    expect(classifySlug("  Mi Proyecto  ")).toEqual({
+    expect(classifySlug("  My Project  ")).toEqual({
       ok: true,
-      normalized: "mi-proyecto",
+      normalized: "my-project",
     });
   });
 
@@ -92,9 +92,9 @@ describe("Slug Normalization & Anti-Collision Engine", () => {
   });
 
   it("accepts valid custom slugs", () => {
-    const r1 = SlugSchema.safeParse("mi-guia-turistica");
+    const r1 = SlugSchema.safeParse("my-travel-guide");
     expect(r1.success).toBe(true);
-    if (r1.success) expect(r1.data).toBe("mi-guia-turistica");
+    if (r1.success) expect(r1.data).toBe("my-travel-guide");
 
     const r2 = SlugSchema.safeParse("portfolio-v2");
     expect(r2.success).toBe(true);

@@ -39,7 +39,7 @@ function direct(slug: string, extra: Record<string, unknown> = {}) {
   };
 }
 
-/** Recorre todas las páginas siguiendo nextCursor. */
+/** Walks all pages following nextCursor. */
 async function collectAll(
   service: LinkService,
   params: Record<string, unknown> = {},
@@ -69,10 +69,10 @@ describe("LinkService — CRUD & slug rules", () => {
   });
 
   it("creates a DIRECT link, normalizing the slug and returning a safe DTO", async () => {
-    const link = await ctx.service.createLink(direct("  Mi Guía Turística  "));
-    expect(link.slug).toBe("mi-guia-turistica");
+    const link = await ctx.service.createLink(direct("  Café Crème Guide  "));
+    expect(link.slug).toBe("cafe-creme-guide");
     expect(link.shortUrl).toBe(
-      "https://links.cristianarando.dev/mi-guia-turistica",
+      "https://links.cristianarando.dev/cafe-creme-guide",
     );
     expect(link.type).toBe("DIRECT");
     expect(link.redirectStatus).toBe(307);
@@ -138,8 +138,8 @@ describe("LinkService — CRUD & slug rules", () => {
 
   it("creates a HUB link and round-trips its sub-links", async () => {
     const link = await ctx.service.createLink({
-      slug: "proyecto-hub",
-      title: "Proyecto HUB",
+      slug: "project-hub",
+      title: "Project HUB",
       type: "HUB",
       destinationUrl: "https://ignored.example.com",
       hubLinks: [
@@ -166,7 +166,7 @@ describe("LinkService — CRUD & slug rules", () => {
 
   it("hashes PINs with scrypt and never exposes the hash", async () => {
     const link = await ctx.service.createLink(
-      direct("protegido", { pin: "1234" }),
+      direct("protected-link", { pin: "1234" }),
     );
     expect(link.hasPin).toBe(true);
     const row = await ctx.service.findRowById(link.id);
@@ -175,22 +175,22 @@ describe("LinkService — CRUD & slug rules", () => {
   });
 
   it("updates fields, rejects taken slugs and enforces the final-state polymorphic invariant", async () => {
-    const a = await ctx.service.createLink(direct("enlace-a"));
-    await ctx.service.createLink(direct("enlace-b"));
+    const a = await ctx.service.createLink(direct("link-a"));
+    await ctx.service.createLink(direct("link-b"));
 
     const renamed = await ctx.service.updateLink(a.id, {
-      slug: "Enlace Renombrado",
-      title: "Nuevo título",
+      slug: "Renamed Link",
+      title: "New title",
     });
-    expect(renamed.slug).toBe("enlace-renombrado");
-    expect(renamed.title).toBe("Nuevo título");
+    expect(renamed.slug).toBe("renamed-link");
+    expect(renamed.title).toBe("New title");
 
-    // Mismo slug propio: permitido.
+    // Same slug on the same link: allowed.
     await expect(
-      ctx.service.updateLink(a.id, { slug: "enlace-renombrado" }),
+      ctx.service.updateLink(a.id, { slug: "renamed-link" }),
     ).resolves.toBeDefined();
     await expectServiceError(
-      ctx.service.updateLink(a.id, { slug: "enlace-b" }),
+      ctx.service.updateLink(a.id, { slug: "link-b" }),
       "SLUG_ALREADY_EXISTS",
     );
     await expectServiceError(
@@ -217,7 +217,7 @@ describe("LinkService — CRUD & slug rules", () => {
       (await ctx.service.updateLink(link.id, { pin: "9999" })).hasPin,
     ).toBe(true);
     expect(
-      (await ctx.service.updateLink(link.id, { title: "otro" })).hasPin,
+      (await ctx.service.updateLink(link.id, { title: "other" })).hasPin,
     ).toBe(true);
     expect((await ctx.service.updateLink(link.id, { pin: null })).hasPin).toBe(
       false,
@@ -239,24 +239,26 @@ describe("LinkService — CRUD & slug rules", () => {
   });
 
   it("deletes links and reports NOT_FOUND afterwards", async () => {
-    const link = await ctx.service.createLink(direct("borrar"));
+    const link = await ctx.service.createLink(direct("delete-me"));
     await ctx.service.deleteLink(link.id);
     expect(await ctx.service.getLinkById(link.id)).toBeNull();
     await expectServiceError(ctx.service.deleteLink(link.id), "NOT_FOUND");
   });
 
   it("reports slug availability with reasons", async () => {
-    const link = await ctx.service.createLink(direct("ocupado"));
-    expect(await ctx.service.checkSlugAvailability("libre-total")).toEqual({
+    const link = await ctx.service.createLink(direct("taken-slug"));
+    expect(await ctx.service.checkSlugAvailability("completely-free")).toEqual({
       available: true,
-      normalizedSlug: "libre-total",
+      normalizedSlug: "completely-free",
     });
-    expect(await ctx.service.checkSlugAvailability("Ocupado")).toMatchObject({
-      available: false,
-      reason: "TAKEN",
-    });
+    expect(await ctx.service.checkSlugAvailability("Taken-Slug")).toMatchObject(
+      {
+        available: false,
+        reason: "TAKEN",
+      },
+    );
     expect(
-      await ctx.service.checkSlugAvailability("ocupado", link.id),
+      await ctx.service.checkSlugAvailability("taken-slug", link.id),
     ).toMatchObject({ available: true });
     expect(await ctx.service.checkSlugAvailability("uses")).toMatchObject({
       available: true,
@@ -277,7 +279,7 @@ describe("LinkService — keyset pagination over (is_pinned DESC, id DESC)", () 
   let ctx: Awaited<ReturnType<typeof setup>>;
   beforeEach(async () => {
     ctx = await setup();
-    // 30 enlaces: los índices múltiplos de 6 quedan fijados (0,6,12,18,24 => 5 fijados).
+    // 30 links: indices divisible by 6 are pinned (0, 6, 12, 18, 24 => 5 pinned).
     for (let i = 0; i < 30; i++) {
       await ctx.service.createLink(
         direct(`link-${String(i).padStart(2, "0")}`, { isPinned: i % 6 === 0 }),
@@ -305,7 +307,7 @@ describe("LinkService — keyset pagination over (is_pinned DESC, id DESC)", () 
 
   it("remains stable when a link is created between page requests", async () => {
     const first = await ctx.service.listLinksPaginated({ limit: 12 });
-    await ctx.service.createLink(direct("insertado-en-medio"));
+    await ctx.service.createLink(direct("inserted-in-between"));
     const second = await ctx.service.listLinksPaginated({
       limit: 12,
       cursor: first.nextCursor,
@@ -320,7 +322,7 @@ describe("LinkService — keyset pagination over (is_pinned DESC, id DESC)", () 
     );
     expect(new Set(seen).size).toBe(seen.length);
     expect(seen).toHaveLength(30);
-    expect(seen).not.toContain("insertado-en-medio");
+    expect(seen).not.toContain("inserted-in-between");
   });
 
   it("clamps the page size to the [1, 50] range", async () => {
@@ -348,45 +350,45 @@ describe("LinkService — search, filters and public isolation", () => {
 
   it("searches slug, title, description and destination case-insensitively, treating wildcards literally", async () => {
     await ctx.service.createLink(
-      direct("guia-turistica", { title: "Guía Turística" }),
+      direct("travel-guide", { title: "Travel Guide" }),
     );
     await ctx.service.createLink(
-      direct("otro", {
-        title: "Otro",
-        description: "Recorrido por la GUIA local",
+      direct("other", {
+        title: "Other",
+        description: "Tour through the local GUIDE",
       }),
     );
     await ctx.service.createLink(
-      direct("repo", { destinationUrl: "https://github.com/guia/repo" }),
+      direct("repo", { destinationUrl: "https://github.com/guide/repo" }),
     );
-    await ctx.service.createLink(direct("sin-match", { title: "100% real" }));
+    await ctx.service.createLink(direct("no-match", { title: "100% real" }));
 
-    const result = await ctx.service.listLinksPaginated({ q: "GUIA" });
+    const result = await ctx.service.listLinksPaginated({ q: "GUIDE" });
     expect(result.items.map((l) => l.slug).sort()).toEqual([
-      "guia-turistica",
-      "otro",
+      "other",
       "repo",
+      "travel-guide",
     ]);
 
     const wildcard = await ctx.service.listLinksPaginated({ q: "%" });
-    expect(wildcard.items.map((l) => l.slug)).toEqual(["sin-match"]);
+    expect(wildcard.items.map((l) => l.slug)).toEqual(["no-match"]);
   });
 
   it("filters by category and by status", async () => {
     const now = new Date();
     await ctx.service.createLink(direct("social-a", { category: "social" }));
-    await ctx.service.createLink(direct("pausado", { isActive: false }));
-    await ctx.service.createLink(direct("fijado", { isPinned: true }));
+    await ctx.service.createLink(direct("paused-link", { isActive: false }));
+    await ctx.service.createLink(direct("pinned-link", { isPinned: true }));
     await ctx.service.createLink(
-      direct("vencido", { expiresAt: new Date(now.getTime() - 60_000) }),
+      direct("expired-link", { expiresAt: new Date(now.getTime() - 60_000) }),
     );
-    const agotado = await ctx.service.createLink(
-      direct("agotado", { maxClicks: 3 }),
+    const exhausted = await ctx.service.createLink(
+      direct("exhausted-link", { maxClicks: 3 }),
     );
     await ctx.db
       .update(schema.links)
       .set({ clicksCount: 3 })
-      .where(eq(schema.links.id, agotado.id));
+      .where(eq(schema.links.id, exhausted.id));
 
     const slugs = async (params: Record<string, unknown>) =>
       (await ctx.service.listLinksPaginated(params)).items
@@ -394,10 +396,16 @@ describe("LinkService — search, filters and public isolation", () => {
         .sort();
 
     expect(await slugs({ category: "social" })).toEqual(["social-a"]);
-    expect(await slugs({ status: "inactive" })).toEqual(["pausado"]);
-    expect(await slugs({ status: "pinned" })).toEqual(["fijado"]);
-    expect(await slugs({ status: "expired" })).toEqual(["agotado", "vencido"]);
-    expect(await slugs({ status: "active" })).toEqual(["fijado", "social-a"]);
+    expect(await slugs({ status: "inactive" })).toEqual(["paused-link"]);
+    expect(await slugs({ status: "pinned" })).toEqual(["pinned-link"]);
+    expect(await slugs({ status: "expired" })).toEqual([
+      "exhausted-link",
+      "expired-link",
+    ]);
+    expect(await slugs({ status: "active" })).toEqual([
+      "pinned-link",
+      "social-a",
+    ]);
 
     const expired = (
       await ctx.service.listLinksPaginated({ status: "expired" })
@@ -415,20 +423,20 @@ describe("LinkService — search, filters and public isolation", () => {
   });
 
   it("public listing only returns public, active, non-expired links with a reduced DTO", async () => {
-    await ctx.service.createLink(direct("publico", { isPublic: true }));
-    await ctx.service.createLink(direct("privado", { isPublic: false }));
+    await ctx.service.createLink(direct("public-link", { isPublic: true }));
+    await ctx.service.createLink(direct("private-link", { isPublic: false }));
     await ctx.service.createLink(
-      direct("publico-pausado", { isPublic: true, isActive: false }),
+      direct("public-paused", { isPublic: true, isActive: false }),
     );
     await ctx.service.createLink(
-      direct("publico-vencido", {
+      direct("public-expired", {
         isPublic: true,
         expiresAt: new Date(Date.now() - 1000),
       }),
     );
 
     const result = await ctx.service.listPublicLinksPaginated({});
-    expect(result.items.map((l) => l.slug)).toEqual(["publico"]);
+    expect(result.items.map((l) => l.slug)).toEqual(["public-link"]);
     const item = result.items[0]!;
     expect(item).not.toHaveProperty("destinationUrl");
     expect(item).not.toHaveProperty("maxClicks");

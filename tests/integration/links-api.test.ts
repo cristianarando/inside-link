@@ -113,27 +113,27 @@ describe("Admin Links API Route Handlers (/api/v1/links/*)", () => {
   });
 
   it("completes the full owner workflow: POST -> check-slug -> GET paginated -> PATCH -> DELETE", async () => {
-    // 1. POST crear enlace
+    // 1. POST create link
     const createRes = await handleCreateLinkPost(
       new Request("https://cristianarando.dev/api/v1/links", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          slug: "Proyecto Guia Turistica",
-          title: "Guía Turística",
+          slug: "Travel Guide Project",
+          title: "Travel Guide",
           type: "DIRECT",
-          destinationUrl: "https://github.com/cristianarando/guia-turistica",
+          destinationUrl: "https://github.com/cristianarando/travel-guide",
           category: "project",
-          tags: ["turismo", "nextjs"],
+          tags: ["travel", "nextjs"],
         }),
       }),
       ctx.authorizedDeps,
     );
     expect(createRes.status).toBe(201);
     const created = await createRes.json();
-    expect(created.slug).toBe("proyecto-guia-turistica");
+    expect(created.slug).toBe("travel-guide-project");
 
-    // 2. Intentar crear con ruta reservada -> 422 SLUG_RESERVED
+    // 2. Attempt creating with reserved route -> 422 SLUG_RESERVED
     const reservedRes = await handleCreateLinkPost(
       new Request("https://links.cristianarando.dev/api/v1/links", {
         method: "POST",
@@ -150,14 +150,14 @@ describe("Admin Links API Route Handlers (/api/v1/links/*)", () => {
     const reservedBody = await reservedRes.json();
     expect(reservedBody.error.code).toBe("SLUG_RESERVED");
 
-    // 3. Intentar crear duplicado -> 409 SLUG_ALREADY_EXISTS
+    // 3. Attempt creating duplicate slug -> 409 SLUG_ALREADY_EXISTS
     const dupRes = await handleCreateLinkPost(
       new Request("https://cristianarando.dev/api/v1/links", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          slug: "proyecto-guia-turistica",
-          title: "Duplicado",
+          slug: "travel-guide-project",
+          title: "Duplicate",
           destinationUrl: "https://example.com",
         }),
       }),
@@ -165,10 +165,10 @@ describe("Admin Links API Route Handlers (/api/v1/links/*)", () => {
     );
     expect(dupRes.status).toBe(409);
 
-    // 4. check-slug ocupado, excluido y libre
+    // 4. check-slug: taken, excluded self, and auto-generated
     const takenCheck = await handleCheckSlugGet(
       new Request(
-        "https://cristianarando.dev/api/v1/links/check-slug?slug=proyecto-guia-turistica",
+        "https://cristianarando.dev/api/v1/links/check-slug?slug=travel-guide-project",
       ),
       ctx.authorizedDeps,
     );
@@ -180,7 +180,7 @@ describe("Admin Links API Route Handlers (/api/v1/links/*)", () => {
 
     const selfCheck = await handleCheckSlugGet(
       new Request(
-        `https://cristianarando.dev/api/v1/links/check-slug?slug=proyecto-guia-turistica&excludeId=${created.id}`,
+        `https://cristianarando.dev/api/v1/links/check-slug?slug=travel-guide-project&excludeId=${created.id}`,
       ),
       ctx.authorizedDeps,
     );
@@ -196,11 +196,9 @@ describe("Admin Links API Route Handlers (/api/v1/links/*)", () => {
     expect(randomBody.available).toBe(true);
     expect(randomBody.normalizedSlug).toMatch(/^[a-z0-9]{6}$/);
 
-    // 5. GET paginado con búsqueda
+    // 5. GET paginated with search query
     const listRes = await handleListLinksGet(
-      new Request(
-        "https://cristianarando.dev/api/v1/links?q=turistica&limit=12",
-      ),
+      new Request("https://cristianarando.dev/api/v1/links?q=travel&limit=12"),
       ctx.authorizedDeps,
     );
     expect(listRes.status).toBe(200);
@@ -208,7 +206,7 @@ describe("Admin Links API Route Handlers (/api/v1/links/*)", () => {
     expect(listBody.items).toHaveLength(1);
     expect(listBody.items[0].id).toBe(created.id);
 
-    // 6. PATCH fijar arriba y cambiar título
+    // 6. PATCH pin to top and update title
     const patchRes = await handleUpdateLinkPatch(
       new Request(`https://cristianarando.dev/api/v1/links/${created.id}`, {
         method: "PATCH",
@@ -216,7 +214,7 @@ describe("Admin Links API Route Handlers (/api/v1/links/*)", () => {
         body: JSON.stringify({
           isPinned: true,
           isActive: false,
-          title: "Guía Turística v2",
+          title: "Travel Guide v2",
         }),
       }),
       created.id,
@@ -226,9 +224,9 @@ describe("Admin Links API Route Handlers (/api/v1/links/*)", () => {
     const patched = await patchRes.json();
     expect(patched.isPinned).toBe(true);
     expect(patched.isActive).toBe(false);
-    expect(patched.title).toBe("Guía Turística v2");
+    expect(patched.title).toBe("Travel Guide v2");
 
-    // 7. DELETE eliminar enlace
+    // 7. DELETE link
     const delRes = await handleDeleteLinkDelete(
       new Request(`https://cristianarando.dev/api/v1/links/${created.id}`, {
         method: "DELETE",
@@ -238,7 +236,7 @@ describe("Admin Links API Route Handlers (/api/v1/links/*)", () => {
     );
     expect(delRes.status).toBe(200);
 
-    // 8. Segundo DELETE devuelve 404
+    // 8. Second DELETE returns 404
     const delAgain = await handleDeleteLinkDelete(
       new Request(`https://cristianarando.dev/api/v1/links/${created.id}`, {
         method: "DELETE",

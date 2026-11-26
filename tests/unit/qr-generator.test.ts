@@ -6,20 +6,20 @@ import {
   generateQrCodeSvg,
 } from "../../src/lib/qr-generator";
 
-describe("T-018: Generador de Códigos QR Personalizados (SVG y PNG)", () => {
-  it("apunta siempre al dominio canónico https://links.cristianarando.dev/[slug]", () => {
+describe("Custom QR Code Generator (SVG & PNG)", () => {
+  it("always targets the canonical domain https://links.cristianarando.dev/[slug]", () => {
     expect(
       buildCanonicalQrTargetUrl("github", "https://links.cristianarando.dev/"),
     ).toBe("https://links.cristianarando.dev/github");
     expect(
       buildCanonicalQrTargetUrl(
-        "/Proyecto-Demo",
+        "/Demo-Project",
         "https://links.cristianarando.dev",
       ),
-    ).toBe("https://links.cristianarando.dev/proyecto-demo");
+    ).toBe("https://links.cristianarando.dev/demo-project");
   });
 
-  it("genera SVG vectorial válido con insignia CA opcional y PNG base64", async () => {
+  it("generates valid vector SVG with optional CA badge and base64 PNG", async () => {
     const svgWithBadge = await generateQrCodeSvg({
       slug: "linkedin",
       canonicalBaseUrl: "https://links.cristianarando.dev",
