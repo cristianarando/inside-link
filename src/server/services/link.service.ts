@@ -1,14 +1,27 @@
 import { randomInt } from "node:crypto";
-import { and, desc, eq, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql, type SQL } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
 import { monotonicFactory } from "ulidx";
 import { z } from "zod";
 
-import * as schema from "../db/schema";
-import { links, type Link, type NewLink } from "../db/schema";
-import { hashPin } from "../crypto/pin";
 import { decodeLinkCursor, encodeLinkCursor } from "@/lib/cursor";
-import { classifySlug } from "@/lib/validations/slug.schema";
+import { RoutingRuleSchema, type RoutingRule } from "@/lib/smart-routing";
+import { LinkThemeOverrideSchema, type LinkThemeOverride } from "@/lib/themes";
+import type {
+  BackupConflictStrategy,
+  BackupSlugPreviewItem,
+  BulkActionResult,
+  ImportLinksBackupResult,
+  LinkBackupItem,
+  LinkCategory,
+  LinkDTO,
+  LinkHealthStatus,
+  LinksBackupPayload,
+  LinkStatusFilter,
+  PaginatedResult,
+  PublicLinkDTO,
+  SlugAvailability,
+} from "@/lib/types/link-dto";
 import {
   BaseLinkSchema,
   CreateLinkSchema,
@@ -16,19 +29,15 @@ import {
   LinkCategorySchema,
   type HubLinkItem,
 } from "@/lib/validations/link.schema";
-import type {
-  LinkCategory,
-  LinkDTO,
-  LinkStatusFilter,
-  PaginatedResult,
-  PublicLinkDTO,
-  SlugAvailability,
-} from "@/lib/types/link-dto";
+import { classifySlug } from "@/lib/validations/slug.schema";
+import { hashPin } from "../crypto/pin";
+import * as schema from "../db/schema";
+import { clickEvents, links, type Link, type NewLink } from "../db/schema";
 
 export type AppDatabase = LibSQLDatabase<typeof schema>;
 
 // ---------------------------------------------------------------------------
-// Errores de dominio
+// Domain Errors
 // ---------------------------------------------------------------------------
 
 export type LinkServiceErrorCode =
@@ -54,7 +63,7 @@ export class LinkServiceError extends Error {
   }
 }
 
-/** Mapeo canónico de errores de dominio a códigos HTTP (usado por los Route Handlers en T-009). */
+/** Canonical mapping from domain error codes to HTTP status codes for Route Handlers. */
 export function httpStatusForLinkError(code: LinkServiceErrorCode): number {
   switch (code) {
     case "NOT_FOUND":
@@ -71,7 +80,7 @@ export function httpStatusForLinkError(code: LinkServiceErrorCode): number {
 }
 
 // ---------------------------------------------------------------------------
-// Constantes y utilidades internas
+// Internal Constants & Utilities
 // ---------------------------------------------------------------------------
 
 export const DEFAULT_PAGE_SIZE = 12;
@@ -89,8 +98,50 @@ const LinkStatusFilterSchema = z.enum([
 ]);
 const TagsSchema = z.array(z.string());
 const HubLinksSchema = z.array(HubLinkItemSchema);
+const RoutingRulesArraySchema = z.array(RoutingRuleSchema);
+const LinkHealthStatusSchema = z.enum([
+  "healthy",
+  "redirect",
+  "broken",
+  "timeout",
+]);
 
-/** IDs ULID monótonos: garantizan orden estricto incluso si se crean varios en el mismo ms. */
+export const BulkLinkActionSchema = z
+  .object({
+    ids: z
+      .array(z.string().trim().min(1))
+      .min(1, "At least one link ID is required")
+      .max(100, "Cannot process more than 100 links at once"),
+    action: z.enum([
+      "activate",
+      "pause",
+      "makePublic",
+      "makePrivate",
+      "setCategory",
+      "delete",
+    ]),
+    category: LinkCategorySchema.optional(),
+  })
+  .superRefine((val, ctx) => {
+    if (val.action === "setCategory" && !val.category) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["category"],
+        message: "Category is required when action is setCategory",
+      });
+    }
+  });
+
+const ImportBackupPayloadSchema = z.object({
+  links: z
+    .array(z.record(z.unknown()))
+    .min(1, "Backup must contain at least one link")
+    .max(500, "Backup import is capped at 500 links per request"),
+  conflictStrategy: z.enum(["skip", "update"]).default("skip"),
+  dryRun: z.boolean().default(false),
+});
+
+/** Monotonic ULID generator: guarantees strict lexicographic ordering within the same millisecond. */
 const nextId = monotonicFactory();
 
 function canonicalBaseUrl(): string {
@@ -132,6 +183,32 @@ function safeJsonArray<T>(
   }
 }
 
+function safeParseTheme(raw: string | null): LinkThemeOverride | null {
+  if (!raw) return null;
+  try {
+    const parsed = LinkThemeOverrideSchema.safeParse(JSON.parse(raw));
+    if (!parsed.success) return null;
+    const data = parsed.data;
+    if (
+      !data.preset &&
+      !data.accentHex &&
+      !data.surfaceTone &&
+      !data.glowIntensity
+    ) {
+      return null;
+    }
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function safeParseHealthStatus(raw: string | null): LinkHealthStatus | null {
+  if (!raw) return null;
+  const parsed = LinkHealthStatusSchema.safeParse(raw);
+  return parsed.success ? parsed.data : null;
+}
+
 function toCategory(value: string): LinkCategory {
   const parsed = LinkCategorySchema.safeParse(value);
   return parsed.success ? parsed.data : "project";
@@ -160,8 +237,15 @@ export function isLinkExpired(
   return false;
 }
 
+export function isLinkScheduled(
+  row: Pick<Link, "startsAt">,
+  now: Date = new Date(),
+): boolean {
+  return Boolean(row.startsAt && row.startsAt.getTime() > now.getTime());
+}
+
 // ---------------------------------------------------------------------------
-// Mapeadores fila -> DTO (nunca exponen password_hash)
+// Row -> DTO Mappers (never expose `password_hash`)
 // ---------------------------------------------------------------------------
 
 export function toLinkDTO(row: Link, now: Date = new Date()): LinkDTO {
@@ -185,16 +269,35 @@ export function toLinkDTO(row: Link, now: Date = new Date()): LinkDTO {
     isPublic: row.isPublic,
     isPinned: row.isPinned,
     hasPin: row.passwordHash !== null,
+    isScheduled: isLinkScheduled(row, now),
+    startsAt: row.startsAt ? row.startsAt.toISOString() : null,
     isExpired: isLinkExpired(row, now),
     expiresAt: row.expiresAt ? row.expiresAt.toISOString() : null,
+    expiredRedirectUrl: row.expiredRedirectUrl ?? null,
     maxClicks: row.maxClicks,
     clicksCount: row.clicksCount,
+    isCloaked: row.isCloaked,
+    theme: safeParseTheme(row.themeJson),
+    routingRules:
+      safeJsonArray<RoutingRule>(
+        row.routingRulesJson,
+        RoutingRulesArraySchema,
+      ) ?? [],
+    healthStatus: safeParseHealthStatus(row.healthStatus),
+    healthStatusCode: row.healthStatusCode ?? null,
+    healthLatencyMs: row.healthLatencyMs ?? null,
+    healthCheckedAt: row.healthCheckedAt
+      ? row.healthCheckedAt.toISOString()
+      : null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
 }
 
-export function toPublicLinkDTO(row: Link): PublicLinkDTO {
+export function toPublicLinkDTO(
+  row: Link,
+  now: Date = new Date(),
+): PublicLinkDTO {
   return {
     id: row.id,
     slug: row.slug,
@@ -207,11 +310,49 @@ export function toPublicLinkDTO(row: Link): PublicLinkDTO {
     icon: row.icon,
     isPinned: row.isPinned,
     hasPin: row.passwordHash !== null,
+    isScheduled: isLinkScheduled(row, now),
+    startsAt: row.startsAt ? row.startsAt.toISOString() : null,
+    theme: safeParseTheme(row.themeJson),
+  };
+}
+
+function toLinkBackupItem(row: Link): LinkBackupItem {
+  return {
+    slug: row.slug,
+    type: row.type,
+    destinationUrl: row.destinationUrl,
+    redirectStatus: row.redirectStatus,
+    forwardQueryParams: row.forwardQueryParams,
+    hubLinks: safeJsonArray<HubLinkItem>(row.hubLinksJson, HubLinksSchema),
+    title: row.title,
+    description: row.description,
+    ogImageUrl: row.ogImageUrl,
+    ogMode: row.ogMode,
+    category: toCategory(row.category),
+    tags: safeJsonArray<string>(row.tagsJson, TagsSchema) ?? [],
+    icon: row.icon,
+    isActive: row.isActive,
+    isPublic: row.isPublic,
+    isPinned: row.isPinned,
+    hasPin: row.passwordHash !== null,
+    startsAt: row.startsAt ? row.startsAt.toISOString() : null,
+    expiresAt: row.expiresAt ? row.expiresAt.toISOString() : null,
+    expiredRedirectUrl: row.expiredRedirectUrl ?? null,
+    maxClicks: row.maxClicks,
+    isCloaked: row.isCloaked,
+    theme: safeParseTheme(row.themeJson),
+    routingRules:
+      safeJsonArray<RoutingRule>(
+        row.routingRulesJson,
+        RoutingRulesArraySchema,
+      ) ?? [],
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
   };
 }
 
 // ---------------------------------------------------------------------------
-// Fragmentos SQL reutilizables
+// Reusable SQL Fragments
 // ---------------------------------------------------------------------------
 
 function notExpiredSql(nowMs: number): SQL {
@@ -223,14 +364,14 @@ function expiredSql(nowMs: number): SQL {
 }
 
 function searchSql(term: string): SQL {
-  // Escapar comodines de LIKE para que la búsqueda sea literal.
+  // Escape SQLite LIKE wildcards so searches match literal characters safely.
   const escaped = term.replace(/[\\%_]/g, (ch) => `\\${ch}`);
   const pattern = `%${escaped}%`;
   return sql`(${links.slug} LIKE ${pattern} ESCAPE '\\' OR ${links.title} LIKE ${pattern} ESCAPE '\\' OR ${links.description} LIKE ${pattern} ESCAPE '\\' OR ${links.destinationUrl} LIKE ${pattern} ESCAPE '\\')`;
 }
 
 // ---------------------------------------------------------------------------
-// Servicio
+// Service
 // ---------------------------------------------------------------------------
 
 export interface ListLinksParams {
@@ -246,6 +387,13 @@ export interface LinkFlagsPatch {
   isActive?: boolean;
   isPinned?: boolean;
   isPublic?: boolean;
+}
+
+export interface LinkHealthPatch {
+  status: LinkHealthStatus;
+  statusCode: number | null;
+  latencyMs: number;
+  checkedAt?: Date | string;
 }
 
 function validateOgMode(mode: Link["ogMode"], imageUrl: string | null): void {
@@ -275,7 +423,7 @@ export function createLinkService(db: AppDatabase) {
     return rows[0] ?? null;
   }
 
-  /** Valida un slug crudo y devuelve su forma normalizada, o lanza un error de dominio. */
+  /** Validates a raw slug and returns its normalized form, or throws a domain error. */
   function assertValidSlug(raw: string): string {
     const result = classifySlug(raw);
     if (!result.ok) {
@@ -407,9 +555,19 @@ export function createLinkService(db: AppDatabase) {
       isPublic: data.isPublic,
       isPinned: data.isPinned,
       passwordHash: data.pin ? hashPin(data.pin) : null,
+      startsAt: data.startsAt ?? null,
       expiresAt: data.expiresAt ?? null,
+      expiredRedirectUrl: data.expiredRedirectUrl ?? null,
       maxClicks: data.maxClicks ?? null,
       clicksCount: 0,
+      isCloaked: data.type === "DIRECT" ? data.isCloaked : false,
+      themeJson: data.theme ? JSON.stringify(data.theme) : null,
+      routingRulesJson:
+        data.type === "DIRECT" &&
+        data.routingRules &&
+        data.routingRules.length > 0
+          ? JSON.stringify(data.routingRules)
+          : null,
       createdAt: now,
       updatedAt: now,
     };
@@ -417,7 +575,7 @@ export function createLinkService(db: AppDatabase) {
     try {
       await db.insert(links).values(values);
     } catch (err) {
-      // Carrera entre la verificación y el INSERT: el índice UNIQUE es la barrera final.
+      // Race condition between pre-check and INSERT: the UNIQUE index is the final guard.
       if (isUniqueSlugViolation(err)) {
         throw new LinkServiceError(
           "SLUG_ALREADY_EXISTS",
@@ -477,6 +635,10 @@ export function createLinkService(db: AppDatabase) {
       data.hubLinks !== undefined
         ? data.hubLinks
         : safeJsonArray(existing.hubLinksJson, HubLinksSchema);
+    const finalStartsAt =
+      data.startsAt !== undefined ? data.startsAt : existing.startsAt;
+    const finalExpiresAt =
+      data.expiresAt !== undefined ? data.expiresAt : existing.expiresAt;
 
     if (finalType === "DIRECT" && !finalDestination) {
       throw new LinkServiceError(
@@ -493,6 +655,19 @@ export function createLinkService(db: AppDatabase) {
         "HUB mode requires at least one sub-link",
         {
           hubLinks: ["HUB mode requires at least one sub-link"],
+        },
+      );
+    }
+    if (
+      finalStartsAt &&
+      finalExpiresAt &&
+      finalStartsAt.getTime() >= finalExpiresAt.getTime()
+    ) {
+      throw new LinkServiceError(
+        "VALIDATION_ERROR",
+        "Expiration date must be after scheduled launch date",
+        {
+          expiresAt: ["Expiration date must be after scheduled launch date"],
         },
       );
     }
@@ -525,19 +700,36 @@ export function createLinkService(db: AppDatabase) {
     if (data.isActive !== undefined) updates.isActive = data.isActive;
     if (data.isPublic !== undefined) updates.isPublic = data.isPublic;
     if (data.isPinned !== undefined) updates.isPinned = data.isPinned;
+    if (data.startsAt !== undefined) updates.startsAt = data.startsAt;
     if (data.expiresAt !== undefined) updates.expiresAt = data.expiresAt;
+    if (data.expiredRedirectUrl !== undefined)
+      updates.expiredRedirectUrl = data.expiredRedirectUrl;
     if (data.maxClicks !== undefined) updates.maxClicks = data.maxClicks;
-    // pin: string => establecer/rotar; null => eliminar protección; undefined => sin cambios.
+    if (data.theme !== undefined) {
+      updates.themeJson = data.theme ? JSON.stringify(data.theme) : null;
+    }
+    // pin: string => set/rotate PIN; null => clear PIN protection; undefined => leave unchanged.
     if (data.pin !== undefined)
       updates.passwordHash = data.pin ? hashPin(data.pin) : null;
 
-    // Mantener la fila coherente con su tipo final.
+    // Keep row columns consistent with its resolved link type.
     if (finalType === "DIRECT") {
       updates.destinationUrl = finalDestination ?? null;
       updates.hubLinksJson = null;
+      if (data.isCloaked !== undefined) {
+        updates.isCloaked = data.isCloaked;
+      }
+      if (data.routingRules !== undefined) {
+        updates.routingRulesJson =
+          data.routingRules && data.routingRules.length > 0
+            ? JSON.stringify(data.routingRules)
+            : null;
+      }
     } else {
       updates.destinationUrl = null;
       updates.hubLinksJson = JSON.stringify(finalHubLinks);
+      updates.isCloaked = false;
+      updates.routingRulesJson = null;
     }
 
     try {
@@ -571,13 +763,397 @@ export function createLinkService(db: AppDatabase) {
     return updateLink(id, patch);
   }
 
+  async function updateLinkHealth(
+    id: string,
+    health: LinkHealthPatch,
+  ): Promise<LinkDTO> {
+    const existing = await findRowById(id);
+    if (!existing) throw new LinkServiceError("NOT_FOUND", "Link not found");
+
+    const checkedAt =
+      health.checkedAt instanceof Date
+        ? health.checkedAt
+        : health.checkedAt
+          ? new Date(health.checkedAt)
+          : new Date();
+
+    await db
+      .update(links)
+      .set({
+        healthStatus: health.status,
+        healthStatusCode: health.statusCode,
+        healthLatencyMs: Math.max(0, Math.trunc(health.latencyMs)),
+        healthCheckedAt: checkedAt,
+      })
+      .where(eq(links.id, id));
+
+    const updated = await findRowById(id);
+    if (!updated) throw new LinkServiceError("NOT_FOUND", "Link not found");
+    return toLinkDTO(updated);
+  }
+
+  async function resetLinkClicks(id: string): Promise<LinkDTO> {
+    const existing = await findRowById(id);
+    if (!existing) throw new LinkServiceError("NOT_FOUND", "Link not found");
+
+    await db.delete(clickEvents).where(eq(clickEvents.linkId, id));
+    await db.update(links).set({ clicksCount: 0 }).where(eq(links.id, id));
+
+    const updated = await findRowById(id);
+    if (!updated) throw new LinkServiceError("NOT_FOUND", "Link not found");
+    return toLinkDTO(updated);
+  }
+
+  async function bulkActionLinks(rawInput: unknown): Promise<BulkActionResult> {
+    const record = asRecord(rawInput);
+    const parsed = BulkLinkActionSchema.safeParse(record);
+    if (!parsed.success) {
+      throw new LinkServiceError(
+        "VALIDATION_ERROR",
+        "Invalid bulk action payload",
+        zodDetails(parsed.error),
+      );
+    }
+
+    const { action, category } = parsed.data;
+    const uniqueIds = Array.from(new Set(parsed.data.ids));
+    const now = new Date();
+
+    if (action === "delete") {
+      const res = await db.delete(links).where(inArray(links.id, uniqueIds));
+      return {
+        action,
+        requestedCount: uniqueIds.length,
+        affectedCount: res.rowsAffected ?? 0,
+      };
+    }
+
+    const updates: Partial<NewLink> = { updatedAt: now };
+    if (action === "activate") updates.isActive = true;
+    else if (action === "pause") updates.isActive = false;
+    else if (action === "makePublic") updates.isPublic = true;
+    else if (action === "makePrivate") updates.isPublic = false;
+    else if (action === "setCategory" && category) updates.category = category;
+
+    const res = await db
+      .update(links)
+      .set(updates)
+      .where(inArray(links.id, uniqueIds));
+
+    return {
+      action,
+      requestedCount: uniqueIds.length,
+      affectedCount: res.rowsAffected ?? 0,
+    };
+  }
+
+  async function exportLinksBackup(): Promise<LinksBackupPayload> {
+    const rows = await db
+      .select()
+      .from(links)
+      .orderBy(desc(links.isPinned), desc(links.id));
+
+    const items = rows.map(toLinkBackupItem);
+    return {
+      version: "2.0",
+      exportedAt: new Date().toISOString(),
+      count: items.length,
+      links: items,
+    };
+  }
+
+  async function importLinksBackup(
+    rawInput: unknown,
+  ): Promise<ImportLinksBackupResult> {
+    const topRecord = asRecord(rawInput);
+
+    // Support both direct `{ links: [...], conflictStrategy, dryRun }` and wrapped `{ data: { links: [...] } }`.
+    const candidateLinks = Array.isArray(topRecord.links)
+      ? topRecord.links
+      : typeof topRecord.data === "object" &&
+          topRecord.data !== null &&
+          Array.isArray((topRecord.data as { links?: unknown }).links)
+        ? (topRecord.data as { links: unknown[] }).links
+        : topRecord.links;
+
+    const parsedEnvelope = ImportBackupPayloadSchema.safeParse({
+      links: candidateLinks,
+      conflictStrategy: topRecord.conflictStrategy,
+      dryRun: topRecord.dryRun,
+    });
+
+    if (!parsedEnvelope.success) {
+      throw new LinkServiceError(
+        "VALIDATION_ERROR",
+        "Invalid backup import payload",
+        zodDetails(parsedEnvelope.error),
+      );
+    }
+
+    const {
+      links: incomingRaw,
+      conflictStrategy,
+      dryRun,
+    }: {
+      links: Record<string, unknown>[];
+      conflictStrategy: BackupConflictStrategy;
+      dryRun: boolean;
+    } = parsedEnvelope.data;
+
+    const validatedEntries: Array<{
+      slug: string;
+      data: z.infer<typeof CreateLinkSchema>;
+    }> = [];
+    const seenIncomingSlugs = new Set<string>();
+
+    for (let index = 0; index < incomingRaw.length; index++) {
+      const rawEntry = incomingRaw[index]!;
+      const rawSlug =
+        typeof rawEntry.slug === "string" ? rawEntry.slug.trim() : "";
+      if (!rawSlug) {
+        throw new LinkServiceError(
+          "VALIDATION_ERROR",
+          `Backup item #${index + 1} is missing a slug`,
+          { links: [`Item #${index + 1} is missing a valid slug`] },
+        );
+      }
+
+      const normalizedSlug = assertValidSlug(rawSlug);
+      if (seenIncomingSlugs.has(normalizedSlug)) {
+        throw new LinkServiceError(
+          "VALIDATION_ERROR",
+          `Duplicate slug "${normalizedSlug}" inside backup payload`,
+          { links: [`Duplicate slug "${normalizedSlug}" in backup file`] },
+        );
+      }
+      seenIncomingSlugs.add(normalizedSlug);
+
+      const itemParsed = CreateLinkSchema.safeParse({
+        ...rawEntry,
+        slug: normalizedSlug,
+        // Never import raw password hashes or PINs from backup snapshots unless explicitly provided as `pin`.
+        pin: typeof rawEntry.pin === "string" ? rawEntry.pin : undefined,
+      });
+
+      if (!itemParsed.success) {
+        throw new LinkServiceError(
+          "VALIDATION_ERROR",
+          `Invalid link "${normalizedSlug}" at index ${index + 1}`,
+          zodDetails(itemParsed.error),
+        );
+      }
+
+      const ogMode =
+        itemParsed.data.ogMode ??
+        (itemParsed.data.ogImageUrl ? "custom" : "auto");
+      validateOgMode(ogMode, itemParsed.data.ogImageUrl ?? null);
+
+      validatedEntries.push({
+        slug: normalizedSlug,
+        data: {
+          ...itemParsed.data,
+          ogMode,
+        },
+      });
+    }
+
+    const existingRows = await db
+      .select({ id: links.id, slug: links.slug })
+      .from(links)
+      .where(
+        inArray(
+          links.slug,
+          validatedEntries.map((e) => e.slug),
+        ),
+      );
+    const existingBySlug = new Map(existingRows.map((r) => [r.slug, r.id]));
+
+    let toCreate = 0;
+    let toUpdate = 0;
+    let toSkip = 0;
+    const slugsPreview: BackupSlugPreviewItem[] = [];
+
+    for (const entry of validatedEntries) {
+      const existingId = existingBySlug.get(entry.slug);
+      if (!existingId) {
+        toCreate++;
+        slugsPreview.push({
+          slug: entry.slug,
+          title: entry.data.title,
+          operation: "create",
+        });
+      } else if (conflictStrategy === "update") {
+        toUpdate++;
+        slugsPreview.push({
+          slug: entry.slug,
+          title: entry.data.title,
+          operation: "update",
+        });
+      } else {
+        toSkip++;
+        slugsPreview.push({
+          slug: entry.slug,
+          title: entry.data.title,
+          operation: "skip",
+        });
+      }
+    }
+
+    if (dryRun) {
+      return {
+        dryRun: true,
+        totalIncoming: validatedEntries.length,
+        toCreate,
+        toUpdate,
+        toSkip,
+        created: 0,
+        updated: 0,
+        skipped: 0,
+        slugsPreview,
+      };
+    }
+
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
+    const now = new Date();
+
+    for (const entry of validatedEntries) {
+      const existingId = existingBySlug.get(entry.slug);
+      const item = entry.data;
+      const ogMode = item.ogMode ?? (item.ogImageUrl ? "custom" : "auto");
+
+      if (!existingId) {
+        const values: NewLink = {
+          id: nextId(),
+          slug: entry.slug,
+          type: item.type,
+          destinationUrl:
+            item.type === "DIRECT" ? (item.destinationUrl ?? null) : null,
+          redirectStatus: item.redirectStatus,
+          forwardQueryParams: item.forwardQueryParams,
+          hubLinksJson:
+            item.type === "HUB" && item.hubLinks
+              ? JSON.stringify(item.hubLinks)
+              : null,
+          title: item.title.trim(),
+          description: item.description?.trim() || null,
+          ogImageUrl: item.ogImageUrl ?? null,
+          ogMode,
+          category: item.category,
+          tagsJson: JSON.stringify(Array.from(new Set(item.tags))),
+          icon: item.icon,
+          isActive: item.isActive,
+          isPublic: item.isPublic,
+          isPinned: item.isPinned,
+          passwordHash: item.pin ? hashPin(item.pin) : null,
+          startsAt: item.startsAt ?? null,
+          expiresAt: item.expiresAt ?? null,
+          expiredRedirectUrl: item.expiredRedirectUrl ?? null,
+          maxClicks: item.maxClicks ?? null,
+          clicksCount: 0,
+          isCloaked: item.type === "DIRECT" ? item.isCloaked : false,
+          themeJson: item.theme ? JSON.stringify(item.theme) : null,
+          routingRulesJson:
+            item.type === "DIRECT" &&
+            item.routingRules &&
+            item.routingRules.length > 0
+              ? JSON.stringify(item.routingRules)
+              : null,
+          createdAt: now,
+          updatedAt: now,
+        };
+        await db.insert(links).values(values);
+        created++;
+      } else if (conflictStrategy === "update") {
+        const updates: Partial<NewLink> = {
+          type: item.type,
+          destinationUrl:
+            item.type === "DIRECT" ? (item.destinationUrl ?? null) : null,
+          redirectStatus: item.redirectStatus,
+          forwardQueryParams: item.forwardQueryParams,
+          hubLinksJson:
+            item.type === "HUB" && item.hubLinks
+              ? JSON.stringify(item.hubLinks)
+              : null,
+          title: item.title.trim(),
+          description: item.description?.trim() || null,
+          ogImageUrl: item.ogImageUrl ?? null,
+          ogMode,
+          category: item.category,
+          tagsJson: JSON.stringify(Array.from(new Set(item.tags))),
+          icon: item.icon,
+          isActive: item.isActive,
+          isPublic: item.isPublic,
+          isPinned: item.isPinned,
+          startsAt: item.startsAt ?? null,
+          expiresAt: item.expiresAt ?? null,
+          expiredRedirectUrl: item.expiredRedirectUrl ?? null,
+          maxClicks: item.maxClicks ?? null,
+          isCloaked: item.type === "DIRECT" ? item.isCloaked : false,
+          themeJson: item.theme ? JSON.stringify(item.theme) : null,
+          routingRulesJson:
+            item.type === "DIRECT" &&
+            item.routingRules &&
+            item.routingRules.length > 0
+              ? JSON.stringify(item.routingRules)
+              : null,
+          updatedAt: now,
+        };
+        if (item.pin) {
+          updates.passwordHash = hashPin(item.pin);
+        }
+        await db.update(links).set(updates).where(eq(links.id, existingId));
+        updated++;
+      } else {
+        skipped++;
+      }
+    }
+
+    return {
+      dryRun: false,
+      totalIncoming: validatedEntries.length,
+      toCreate,
+      toUpdate,
+      toSkip,
+      created,
+      updated,
+      skipped,
+      slugsPreview,
+    };
+  }
+
+  async function listSitemapHubLinks(
+    now: Date = new Date(),
+  ): Promise<Array<{ slug: string; updatedAt: Date }>> {
+    const nowMs = now.getTime();
+    return db
+      .select({
+        slug: links.slug,
+        updatedAt: links.updatedAt,
+      })
+      .from(links)
+      .where(
+        and(
+          eq(links.type, "HUB"),
+          eq(links.isPublic, true),
+          eq(links.isActive, true),
+          isNull(links.passwordHash),
+          notExpiredSql(nowMs),
+          sql`(${links.startsAt} IS NULL OR ${links.startsAt} <= ${nowMs})`,
+        ),
+      )
+      .orderBy(desc(links.isPinned), desc(links.id))
+      .limit(200);
+  }
+
   async function deleteLink(id: string): Promise<void> {
     const result = await db.delete(links).where(eq(links.id, id));
     if (result.rowsAffected === 0)
       throw new LinkServiceError("NOT_FOUND", "Link not found");
   }
 
-  /** Keyset pagination query over (is_pinned DESC, id DESC) shared by /admin and /. */
+  /** Keyset pagination query over (is_pinned DESC, id DESC) shared by `/admin` and `/`. */
   async function queryPage(params: ListLinksParams, scope: "admin" | "public") {
     const now = params.now ?? new Date();
     const nowMs = now.getTime();
@@ -634,6 +1210,7 @@ export function createLinkService(db: AppDatabase) {
 
     if (scope === "public") {
       // Strict isolation: enforced on the server, never dependent on client parameters.
+      // Scheduled links remain visible in `/` with `isScheduled = true` so the directory can display a "Launching soon" badge.
       conditions.push(
         eq(links.isPublic, true),
         eq(links.isActive, true),
@@ -694,7 +1271,7 @@ export function createLinkService(db: AppDatabase) {
   ): Promise<PaginatedResult<PublicLinkDTO>> {
     const page = await queryPage(params, "public");
     return {
-      items: page.rows.map(toPublicLinkDTO),
+      items: page.rows.map((row) => toPublicLinkDTO(row, page.now)),
       nextCursor: page.nextCursor,
       hasNextPage: page.hasNextPage,
     };
@@ -715,6 +1292,12 @@ export function createLinkService(db: AppDatabase) {
     createLink,
     updateLink,
     toggleLinkFlags,
+    updateLinkHealth,
+    resetLinkClicks,
+    bulkActionLinks,
+    exportLinksBackup,
+    importLinksBackup,
+    listSitemapHubLinks,
     deleteLink,
     listLinksPaginated,
     listPublicLinksPaginated,
