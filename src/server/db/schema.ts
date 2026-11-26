@@ -40,6 +40,17 @@ export const links = sqliteTable(
     expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
     maxClicks: integer("max_clicks"),
     clicksCount: integer("clicks_count").notNull().default(0),
+    themeJson: text("theme_json"),
+    startsAt: integer("starts_at", { mode: "timestamp_ms" }),
+    expiredRedirectUrl: text("expired_redirect_url"),
+    isCloaked: integer("is_cloaked", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    routingRulesJson: text("routing_rules_json"),
+    healthStatus: text("health_status"),
+    healthStatusCode: integer("health_status_code"),
+    healthLatencyMs: integer("health_latency_ms"),
+    healthCheckedAt: integer("health_checked_at", { mode: "timestamp_ms" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
   },
@@ -55,6 +66,29 @@ export const links = sqliteTable(
     index("idx_links_category").on(table.category, table.isPinned, table.id),
   ],
 );
+
+export const siteSettings = sqliteTable("site_settings", {
+  id: text("id").primaryKey(), // Always "default"
+  displayName: text("display_name").notNull().default("Cristian Arando"),
+  headline: text("headline").notNull().default("Links & Projects"),
+  bio: text("bio")
+    .notNull()
+    .default(
+      "Curated directory of full-stack projects, interactive micro-landings, open-source repositories, and verified social profiles.",
+    ),
+  avatarUrl: text("avatar_url").notNull().default("/brand/author-avatar.png"),
+  statusText: text("status_text"),
+  statusColor: text("status_color").notNull().default("emerald"),
+  statusHref: text("status_href"),
+  themePreset: text("theme_preset").notNull().default("obsidian-emerald"),
+  customAccentHex: text("custom_accent_hex"),
+  surfaceTone: text("surface_tone").notNull().default("obsidian"),
+  glowIntensity: text("glow_intensity").notNull().default("subtle"),
+  cardStyle: text("card_style").notNull().default("glass"),
+  directoryLayout: text("directory_layout").notNull().default("bento"),
+  socialLinksJson: text("social_links_json").notNull().default("[]"),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+});
 
 export const clickEvents = sqliteTable(
   "click_events",
@@ -158,5 +192,7 @@ export const verification = sqliteTable("verification", {
 
 export type Link = typeof links.$inferSelect;
 export type NewLink = typeof links.$inferInsert;
+export type SiteSettings = typeof siteSettings.$inferSelect;
+export type NewSiteSettings = typeof siteSettings.$inferInsert;
 export type ClickEvent = typeof clickEvents.$inferSelect;
 export type NewClickEvent = typeof clickEvents.$inferInsert;
