@@ -3,14 +3,50 @@
 import React, { useEffect, useState } from "react";
 import {
   AlertCircle,
+  ArrowDown,
+  ArrowUp,
+  CalendarClock,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  GitBranch,
   Loader2,
+  MonitorCheck,
+  Palette,
+  Plus,
+  ShieldAlert,
+  ShieldCheck,
   Sparkles,
+  Trash2,
   Wand2,
 } from "lucide-react";
-import { Button, DialogModal, Input, Switch } from "@/components/ui/primitives";
+import {
+  Badge,
+  Button,
+  DialogModal,
+  Input,
+  Switch,
+} from "@/components/ui/primitives";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { getCanonicalHost } from "@/lib/env";
+import {
+  ROUTING_DEVICES,
+  ROUTING_OS_LIST,
+  type RoutingDevice,
+  type RoutingOs,
+  type RoutingRule,
+} from "@/lib/smart-routing";
+import {
+  GLOW_INTENSITIES,
+  isValidHexColor,
+  resolveThemeTokens,
+  SURFACE_TONES,
+  THEME_PRESET_LIST,
+  type GlowIntensity,
+  type LinkThemeOverride,
+  type SurfaceTone,
+  type ThemePresetId,
+} from "@/lib/themes";
 import type {
   LinkCategory,
   LinkDTO,
@@ -20,7 +56,10 @@ import type {
 } from "@/lib/types/link-dto";
 import type { HubLinkItem } from "@/lib/validations/link.schema";
 import { classifySlug, normalizeSlug } from "@/lib/validations/slug.schema";
-import type { MetadataPreviewResult } from "@/server/services/metadata.service";
+import type {
+  FrameCompatibilityResult,
+  MetadataPreviewResult,
+} from "@/server/services/metadata.service";
 import { HubLinksEditor } from "./hub-links-editor";
 import { IconPicker } from "./icon-picker";
 
@@ -35,6 +74,7 @@ export interface LinkFormModalProps {
 const DEFAULT_HUB_ITEMS: HubLinkItem[] = [
   {
     id: "repo",
+    kind: "button",
     label: "View GitHub Repository",
     url: "https://github.com/cristianarando/",
     icon: "github",
@@ -42,6 +82,7 @@ const DEFAULT_HUB_ITEMS: HubLinkItem[] = [
   },
   {
     id: "demo",
+    kind: "button",
     label: "View Live Demo",
     url: "https://cristianarando.dev",
     icon: "external-link",
@@ -51,6 +92,16 @@ const DEFAULT_HUB_ITEMS: HubLinkItem[] = [
 
 const VALID_REDIRECT_STATUSES = [301, 302, 307, 308] as const;
 type RedirectStatusCode = (typeof VALID_REDIRECT_STATUSES)[number];
+
+interface RoutingRuleDraft {
+  id: string;
+  label: string;
+  destinationUrl: string;
+  countriesText: string;
+  languagesText: string;
+  devices: RoutingDevice[];
+  os: RoutingOs[];
+}
 
 function normalizeRedirectStatus(code: number | undefined): RedirectStatusCode {
   return VALID_REDIRECT_STATUSES.includes(code as RedirectStatusCode)
@@ -67,6 +118,61 @@ function toLocalDatetimeInputValue(
   if (Number.isNaN(date.getTime())) return "";
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function parseCsvCodes(raw: string): string[] {
+  return raw
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function toRoutingRuleDraft(
+  rule: RoutingRule,
+  index: number,
+): RoutingRuleDraft {
+  return {
+    id:
+      rule.id ||
+      `rule-${index + 1}-${Date.now().toString(36).slice(-4)}`.slice(0, 64),
+    label: rule.label ?? "",
+    destinationUrl: rule.destinationUrl ?? "",
+    countriesText: (rule.countries ?? []).join(", "),
+    languagesText: (rule.languages ?? []).join(", "),
+    devices: [...(rule.devices ?? [])],
+    os: [...(rule.os ?? [])],
+  };
+}
+
+function sanitizeRoutingDrafts(drafts: RoutingRuleDraft[]): RoutingRule[] {
+  return drafts.map((draft, idx) => {
+    const countries = Array.from(
+      new Set(
+        parseCsvCodes(draft.countriesText)
+          .map((c) => c.toUpperCase())
+          .filter((c) => /^[A-Z]{2}$/.test(c)),
+      ),
+    ).slice(0, 50);
+
+    const languages = Array.from(
+      new Set(
+        parseCsvCodes(draft.languagesText)
+          .map((l) => l.toLowerCase())
+          .filter((l) => l.length >= 2 && l.length <= 16),
+      ),
+    ).slice(0, 25);
+
+    const rule: RoutingRule = {
+      id: draft.id || `rule-${idx + 1}`,
+      label: draft.label.trim() || null,
+      destinationUrl: draft.destinationUrl.trim(),
+    };
+    if (countries.length > 0) rule.countries = countries;
+    if (languages.length > 0) rule.languages = languages;
+    if (draft.devices.length > 0) rule.devices = draft.devices;
+    if (draft.os.length > 0) rule.os = draft.os;
+    return rule;
+  });
 }
 
 export function LinkFormModal({
@@ -96,9 +202,39 @@ export function LinkFormModal({
   const [isPinned, setIsPinned] = useState(false);
   const [pinInput, setPinInput] = useState("");
   const [clearExistingPin, setClearExistingPin] = useState(false);
+
+  // Schedule & Expiration Fallback
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const [startsAtInput, setStartsAtInput] = useState("");
   const [expiresAtInput, setExpiresAtInput] = useState("");
+  const [expiredRedirectUrl, setExpiredRedirectUrl] = useState("");
   const [maxClicksInput, setMaxClicksInput] = useState("");
+
+  // Smart Routing Rules (DIRECT)
+  const [routingOpen, setRoutingOpen] = useState(false);
+  const [routingRules, setRoutingRules] = useState<RoutingRuleDraft[]>([]);
+
+  // Iframe Cloaking & Compatibility Check (DIRECT)
+  const [cloakingOpen, setCloakingOpen] = useState(false);
+  const [isCloaked, setIsCloaked] = useState(false);
+  const [isCheckingFrame, setIsCheckingFrame] = useState(false);
+  const [frameCheckResult, setFrameCheckResult] =
+    useState<FrameCompatibilityResult | null>(null);
+  const [frameCheckError, setFrameCheckError] = useState<string | null>(null);
+
+  // HUB Theme Override (HUB)
+  const [themeOpen, setThemeOpen] = useState(false);
+  const [themePreset, setThemePreset] = useState<ThemePresetId | "custom" | "">(
+    "",
+  );
+  const [themeAccentHex, setThemeAccentHex] = useState("#10b981");
+  const [themeSurfaceTone, setThemeSurfaceTone] = useState<SurfaceTone | "">(
+    "",
+  );
+  const [themeGlowIntensity, setThemeGlowIntensity] = useState<
+    GlowIntensity | ""
+  >("");
+
   const [ogMode, setOgMode] = useState<OgMode>("auto");
   const [ogImageUrl, setOgImageUrl] = useState("");
   const [previewUrl, setPreviewUrl] = useState("");
@@ -129,6 +265,8 @@ export function LinkFormModal({
     setClearExistingPin(false);
     setPinInput("");
     setMagicFillMessage(null);
+    setFrameCheckResult(null);
+    setFrameCheckError(null);
 
     if (sourceLink) {
       const isDuplicate = !initialLink && Boolean(duplicateFrom);
@@ -155,11 +293,38 @@ export function LinkFormModal({
       setIsActive(sourceLink.isActive);
       setIsPublic(sourceLink.isPublic);
       setIsPinned(isDuplicate ? false : sourceLink.isPinned);
+
+      const hasSchedule = Boolean(
+        sourceLink.startsAt ||
+        sourceLink.expiresAt ||
+        sourceLink.expiredRedirectUrl,
+      );
+      setScheduleOpen(hasSchedule);
       setStartsAtInput(toLocalDatetimeInputValue(sourceLink.startsAt));
       setExpiresAtInput(toLocalDatetimeInputValue(sourceLink.expiresAt));
+      setExpiredRedirectUrl(sourceLink.expiredRedirectUrl ?? "");
       setMaxClicksInput(
         sourceLink.maxClicks !== null ? String(sourceLink.maxClicks) : "",
       );
+
+      const drafts = (sourceLink.routingRules ?? []).map(toRoutingRuleDraft);
+      setRoutingRules(drafts);
+      setRoutingOpen(drafts.length > 0);
+
+      setIsCloaked(sourceLink.isCloaked);
+      setCloakingOpen(sourceLink.isCloaked);
+
+      const override = sourceLink.theme;
+      setThemeOpen(Boolean(override));
+      setThemePreset(override?.preset ?? "");
+      setThemeAccentHex(
+        override?.accentHex && isValidHexColor(override.accentHex)
+          ? override.accentHex
+          : "#10b981",
+      );
+      setThemeSurfaceTone(override?.surfaceTone ?? "");
+      setThemeGlowIntensity(override?.glowIntensity ?? "");
+
       setOgMode(
         sourceLink.ogMode ?? (sourceLink.ogImageUrl ? "custom" : "auto"),
       );
@@ -180,9 +345,20 @@ export function LinkFormModal({
       setIsActive(true);
       setIsPublic(false);
       setIsPinned(false);
+      setScheduleOpen(false);
       setStartsAtInput("");
       setExpiresAtInput("");
+      setExpiredRedirectUrl("");
       setMaxClicksInput("");
+      setRoutingOpen(false);
+      setRoutingRules([]);
+      setCloakingOpen(false);
+      setIsCloaked(false);
+      setThemeOpen(false);
+      setThemePreset("");
+      setThemeAccentHex("#10b981");
+      setThemeSurfaceTone("");
+      setThemeGlowIntensity("");
       setOgImageUrl("");
     }
   }, [open, initialLink, duplicateFrom, sourceLink]);
@@ -319,6 +495,130 @@ export function LinkFormModal({
     }
   };
 
+  const handleCheckFrameCompatibility = async () => {
+    const trimmedUrl = destinationUrl.trim();
+    if (!trimmedUrl) {
+      setFrameCheckResult(null);
+      setFrameCheckError("Enter a destination URL first.");
+      return;
+    }
+
+    setIsCheckingFrame(true);
+    setFrameCheckError(null);
+    setFrameCheckResult(null);
+
+    try {
+      const res = await fetch("/api/v1/links/frame-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: trimmedUrl }),
+      });
+
+      const body = (await res.json()) as {
+        data?: FrameCompatibilityResult;
+        error?: { message?: string };
+      };
+
+      if (!res.ok || !body.data) {
+        setFrameCheckError(
+          body.error?.message || "Could not check frame compatibility.",
+        );
+        return;
+      }
+
+      setFrameCheckResult(body.data);
+    } catch {
+      setFrameCheckError("Network error while checking iframe compatibility.");
+    } finally {
+      setIsCheckingFrame(false);
+    }
+  };
+
+  const handleAddRoutingRule = () => {
+    if (routingRules.length >= 15) return;
+    setRoutingOpen(true);
+    setRoutingRules((prev) => [
+      ...prev,
+      {
+        id: `rule-${Date.now().toString(36)}-${prev.length + 1}`,
+        label: "",
+        destinationUrl: "",
+        countriesText: "",
+        languagesText: "",
+        devices: [],
+        os: [],
+      },
+    ]);
+  };
+
+  const handleUpdateRoutingRule = (
+    index: number,
+    patch: Partial<RoutingRuleDraft>,
+  ) => {
+    setRoutingRules((prev) =>
+      prev.map((rule, idx) => (idx === index ? { ...rule, ...patch } : rule)),
+    );
+  };
+
+  const handleMoveRoutingRule = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= routingRules.length) return;
+    setRoutingRules((prev) => {
+      const next = [...prev];
+      const current = next[index]!;
+      next[index] = next[target]!;
+      next[target] = current;
+      return next;
+    });
+  };
+
+  const handleRemoveRoutingRule = (index: number) => {
+    setRoutingRules((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const toggleRuleDevice = (index: number, device: RoutingDevice) => {
+    const rule = routingRules[index];
+    if (!rule) return;
+    const exists = rule.devices.includes(device);
+    handleUpdateRoutingRule(index, {
+      devices: exists
+        ? rule.devices.filter((d) => d !== device)
+        : [...rule.devices, device],
+    });
+  };
+
+  const toggleRuleOs = (index: number, osName: RoutingOs) => {
+    const rule = routingRules[index];
+    if (!rule) return;
+    const exists = rule.os.includes(osName);
+    handleUpdateRoutingRule(index, {
+      os: exists ? rule.os.filter((o) => o !== osName) : [...rule.os, osName],
+    });
+  };
+
+  const buildThemeOverride = (): LinkThemeOverride | null => {
+    if (type !== "HUB") return null;
+    const override: LinkThemeOverride = {};
+    if (themePreset) {
+      override.preset = themePreset;
+      if (themePreset === "custom" && isValidHexColor(themeAccentHex)) {
+        override.accentHex = themeAccentHex.trim().toLowerCase();
+      }
+    }
+    if (themeSurfaceTone) {
+      override.surfaceTone = themeSurfaceTone;
+    }
+    if (themeGlowIntensity) {
+      override.glowIntensity = themeGlowIntensity;
+    }
+    return Object.keys(override).length > 0 ? override : null;
+  };
+
+  const previewThemeTokens = resolveThemeTokens(
+    null,
+    buildThemeOverride() ?? undefined,
+  );
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (slugStatus.state === "blocked") return;
@@ -332,6 +632,9 @@ export function LinkFormModal({
         .map((t) => t.trim().toLowerCase())
         .filter(Boolean)
         .slice(0, 10);
+
+      const sanitizedRules =
+        type === "DIRECT" ? sanitizeRoutingDrafts(routingRules) : [];
 
       const payload: Record<string, unknown> = {
         slug: slugInput.trim() ? normalizeSlug(slugInput) : undefined,
@@ -354,7 +657,11 @@ export function LinkFormModal({
         expiresAt: expiresAtInput
           ? new Date(expiresAtInput).toISOString()
           : null,
+        expiredRedirectUrl: expiredRedirectUrl.trim() || null,
         maxClicks: maxClicksInput.trim() ? Number(maxClicksInput) : null,
+        isCloaked: type === "DIRECT" ? isCloaked : false,
+        routingRules: type === "DIRECT" ? sanitizedRules : [],
+        theme: buildThemeOverride(),
       };
 
       if (pinInput.trim()) {
@@ -376,8 +683,14 @@ export function LinkFormModal({
 
       const body = await res.json();
       if (!res.ok) {
+        const firstFieldDetail = body?.error?.details
+          ? Object.values(body.error.details as Record<string, string[]>)
+              .flat()
+              .find(Boolean)
+          : null;
         setSubmitError(
-          body?.error?.message ||
+          firstFieldDetail ||
+            body?.error?.message ||
             "Could not save the link. Please check the fields.",
         );
         setIsSubmitting(false);
@@ -404,7 +717,7 @@ export function LinkFormModal({
       open={open}
       onClose={onClose}
       title={modalTitle}
-      description={`Configure a direct redirect or a project HUB micro-landing for ${canonicalHost}.`}
+      description={`Configure a direct redirect or a Rich HUB micro-landing for ${canonicalHost}.`}
       maxWidthClass="max-w-2xl"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -426,7 +739,7 @@ export function LinkFormModal({
             <button
               type="button"
               onClick={handleGenerateRandomSlug}
-              className="inline-flex cursor-pointer items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 rounded"
+              className="inline-flex cursor-pointer items-center gap-1 rounded text-xs text-emerald-400 hover:text-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
             >
               <Sparkles className="h-3 w-3" />
               Autogenerate (6 chars)
@@ -515,10 +828,10 @@ export function LinkFormModal({
               }`}
             >
               <div className="text-xs font-semibold">
-                Direct Redirect (307/301)
+                Direct Redirect (301/302/307/308)
               </div>
               <div className="mt-0.5 text-[11px] text-zinc-400">
-                Redirects in &lt;50ms straight to the destination URL.
+                Redirects in &lt;50ms with smart routing &amp; cloaking options.
               </div>
             </button>
             <button
@@ -531,11 +844,11 @@ export function LinkFormModal({
               }`}
             >
               <div className="text-xs font-semibold">
-                Project Micro-Landing (HUB)
+                Rich Micro-Landing (HUB)
               </div>
               <div className="mt-0.5 text-[11px] text-zinc-400">
-                Displays a project card with multiple action buttons (GitHub,
-                Demo, Docs).
+                Buttons, GitHub repo cards, YouTube, Spotify, code &amp;
+                callouts.
               </div>
             </button>
           </div>
@@ -814,29 +1127,587 @@ export function LinkFormModal({
               className="mt-1 text-xs"
             />
           </div>
-          <div>
-            <label className="text-xs font-medium text-zinc-300">
-              Scheduled Launch (Optional)
-            </label>
-            <Input
-              type="datetime-local"
-              value={startsAtInput}
-              onChange={(e) => setStartsAtInput(e.target.value)}
-              className="mt-1 text-xs"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-zinc-300">
-              Expiration Date (Optional)
-            </label>
-            <Input
-              type="datetime-local"
-              value={expiresAtInput}
-              onChange={(e) => setExpiresAtInput(e.target.value)}
-              className="mt-1 text-xs"
-            />
-          </div>
         </div>
+
+        {/* Collapsible Pro Section 1: Schedule & Expiration Fallback */}
+        <div className="rounded-xl border border-zinc-800/90 bg-[#111114]/60">
+          <button
+            type="button"
+            onClick={() => setScheduleOpen((prev) => !prev)}
+            aria-expanded={scheduleOpen}
+            className="flex w-full cursor-pointer items-center justify-between gap-2 px-3.5 py-2.5 text-left text-xs font-medium text-zinc-200 transition hover:bg-zinc-900/50"
+          >
+            <span className="flex items-center gap-2">
+              <CalendarClock className="h-3.5 w-3.5 text-emerald-400" />
+              Schedule &amp; Expiration Fallback
+              {(startsAtInput || expiresAtInput || expiredRedirectUrl) && (
+                <Badge variant="emerald">Configured</Badge>
+              )}
+            </span>
+            {scheduleOpen ? (
+              <ChevronDown className="h-4 w-4 text-zinc-400" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-zinc-400" />
+            )}
+          </button>
+
+          {scheduleOpen && (
+            <div className="space-y-3 border-t border-zinc-800/80 p-3.5">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="text-xs font-medium text-zinc-300">
+                    Scheduled Launch (Local Time)
+                  </label>
+                  <Input
+                    type="datetime-local"
+                    value={startsAtInput}
+                    onChange={(e) => setStartsAtInput(e.target.value)}
+                    className="mt-1 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-zinc-300">
+                    Expiration Date (Local Time)
+                  </label>
+                  <Input
+                    type="datetime-local"
+                    value={expiresAtInput}
+                    onChange={(e) => setExpiresAtInput(e.target.value)}
+                    className="mt-1 text-xs"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-zinc-300">
+                  Expired Fallback Redirect URL (Optional)
+                </label>
+                <Input
+                  type="url"
+                  value={expiredRedirectUrl}
+                  onChange={(e) => setExpiredRedirectUrl(e.target.value)}
+                  placeholder="https://cristianarando.dev/archive"
+                  className="mt-1 font-mono text-xs"
+                />
+                <p className="mt-1 text-[11px] text-zinc-500">
+                  Visitors hitting this slug after expiration or max clicks are
+                  redirected here instead of seeing a 410 page.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Collapsible Pro Section 2: Smart Routing Rules (DIRECT only) */}
+        {type === "DIRECT" && (
+          <div className="rounded-xl border border-zinc-800/90 bg-[#111114]/60">
+            <button
+              type="button"
+              onClick={() => setRoutingOpen((prev) => !prev)}
+              aria-expanded={routingOpen}
+              className="flex w-full cursor-pointer items-center justify-between gap-2 px-3.5 py-2.5 text-left text-xs font-medium text-zinc-200 transition hover:bg-zinc-900/50"
+            >
+              <span className="flex items-center gap-2">
+                <GitBranch className="h-3.5 w-3.5 text-sky-400" />
+                Smart Conditional Routing
+                {routingRules.length > 0 && (
+                  <Badge variant="sky">{routingRules.length} rules</Badge>
+                )}
+              </span>
+              {routingOpen ? (
+                <ChevronDown className="h-4 w-4 text-zinc-400" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-zinc-400" />
+              )}
+            </button>
+
+            {routingOpen && (
+              <div className="space-y-3 border-t border-zinc-800/80 p-3.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-[11px] text-zinc-400">
+                    Evaluated top-to-bottom. First rule matching all selected
+                    conditions wins; otherwise falls back to Destination URL.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleAddRoutingRule}
+                    disabled={routingRules.length >= 15}
+                  >
+                    <Plus className="h-3.5 w-3.5 text-sky-400" />
+                    Add Rule ({routingRules.length}/15)
+                  </Button>
+                </div>
+
+                {routingRules.length === 0 ? (
+                  <p className="rounded-xl border border-dashed border-zinc-800 bg-[#09090b]/60 py-4 text-center text-xs text-zinc-500">
+                    No routing rules configured. Click &ldquo;Add Rule&rdquo; to
+                    target by country, language, device, or OS.
+                  </p>
+                ) : (
+                  <div className="space-y-2.5">
+                    {routingRules.map((rule, idx) => {
+                      const countryChips = parseCsvCodes(rule.countriesText)
+                        .map((c) => c.toUpperCase())
+                        .filter((c) => /^[A-Z]{2}$/.test(c));
+                      const langChips = parseCsvCodes(rule.languagesText)
+                        .map((l) => l.toLowerCase())
+                        .filter((l) => l.length >= 2);
+                      const hasAnyCondition =
+                        countryChips.length > 0 ||
+                        langChips.length > 0 ||
+                        rule.devices.length > 0 ||
+                        rule.os.length > 0;
+
+                      return (
+                        <div
+                          key={rule.id}
+                          className="space-y-2.5 rounded-xl border border-zinc-800 bg-[#09090b]/85 p-3"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-mono text-[11px] text-sky-300">
+                              Rule #{idx + 1}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleMoveRoutingRule(idx, -1)}
+                                disabled={idx === 0}
+                                title="Move rule up"
+                                aria-label={`Move routing rule ${idx + 1} up`}
+                                className="cursor-pointer rounded-lg p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-30"
+                              >
+                                <ArrowUp className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleMoveRoutingRule(idx, 1)}
+                                disabled={idx === routingRules.length - 1}
+                                title="Move rule down"
+                                aria-label={`Move routing rule ${idx + 1} down`}
+                                className="cursor-pointer rounded-lg p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-30"
+                              >
+                                <ArrowDown className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveRoutingRule(idx)}
+                                title="Delete rule"
+                                aria-label={`Delete routing rule ${idx + 1}`}
+                                className="cursor-pointer rounded-lg p-1 text-zinc-500 hover:bg-red-950/50 hover:text-red-300"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-12">
+                            <div className="sm:col-span-4">
+                              <Input
+                                maxLength={80}
+                                placeholder="Rule label (e.g. LatAm Mobile)"
+                                aria-label={`Rule ${idx + 1} label`}
+                                value={rule.label}
+                                onChange={(e) =>
+                                  handleUpdateRoutingRule(idx, {
+                                    label: e.target.value,
+                                  })
+                                }
+                                className="text-xs"
+                              />
+                            </div>
+                            <div className="sm:col-span-8">
+                              <Input
+                                required
+                                type="url"
+                                placeholder="Target URL (https://...)"
+                                aria-label={`Rule ${idx + 1} target URL`}
+                                value={rule.destinationUrl}
+                                onChange={(e) =>
+                                  handleUpdateRoutingRule(idx, {
+                                    destinationUrl: e.target.value,
+                                  })
+                                }
+                                className="font-mono text-xs"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                            <div>
+                              <label className="text-[11px] text-zinc-400">
+                                Countries (2-letter ISO CSV)
+                              </label>
+                              <Input
+                                placeholder="CO, US, ES"
+                                aria-label={`Rule ${idx + 1} countries`}
+                                value={rule.countriesText}
+                                onChange={(e) =>
+                                  handleUpdateRoutingRule(idx, {
+                                    countriesText: e.target.value,
+                                  })
+                                }
+                                className="mt-1 font-mono text-xs"
+                              />
+                              {countryChips.length > 0 && (
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {countryChips.map((code) => (
+                                    <Badge key={code} variant="default">
+                                      {code}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            <div>
+                              <label className="text-[11px] text-zinc-400">
+                                Languages (CSV)
+                              </label>
+                              <Input
+                                placeholder="es, en"
+                                aria-label={`Rule ${idx + 1} languages`}
+                                value={rule.languagesText}
+                                onChange={(e) =>
+                                  handleUpdateRoutingRule(idx, {
+                                    languagesText: e.target.value,
+                                  })
+                                }
+                                className="mt-1 font-mono text-xs"
+                              />
+                              {langChips.length > 0 && (
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {langChips.map((lang) => (
+                                    <Badge key={lang} variant="default">
+                                      {lang}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                            <div>
+                              <span className="text-[11px] text-zinc-400">
+                                Devices
+                              </span>
+                              <div className="mt-1 flex flex-wrap gap-1.5">
+                                {ROUTING_DEVICES.map((dev) => {
+                                  const active = rule.devices.includes(dev);
+                                  return (
+                                    <button
+                                      key={dev}
+                                      type="button"
+                                      onClick={() => toggleRuleDevice(idx, dev)}
+                                      className={`cursor-pointer rounded-lg border px-2 py-1 text-[11px] capitalize transition ${
+                                        active
+                                          ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300"
+                                          : "border-zinc-800 bg-[#111114] text-zinc-400 hover:text-zinc-200"
+                                      }`}
+                                    >
+                                      {dev}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            <div>
+                              <span className="text-[11px] text-zinc-400">
+                                Operating Systems
+                              </span>
+                              <div className="mt-1 flex flex-wrap gap-1.5">
+                                {ROUTING_OS_LIST.map((osName) => {
+                                  const active = rule.os.includes(osName);
+                                  return (
+                                    <button
+                                      key={osName}
+                                      type="button"
+                                      onClick={() => toggleRuleOs(idx, osName)}
+                                      className={`cursor-pointer rounded-lg border px-2 py-1 text-[11px] transition ${
+                                        active
+                                          ? "border-sky-500/50 bg-sky-500/15 text-sky-300"
+                                          : "border-zinc-800 bg-[#111114] text-zinc-400 hover:text-zinc-200"
+                                      }`}
+                                    >
+                                      {osName}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+
+                          {!hasAnyCondition && (
+                            <p className="text-[11px] text-amber-400">
+                              Select at least one country, language, device, or
+                              OS for this rule to match.
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Collapsible Pro Section 3: Iframe Cloaking (DIRECT only) */}
+        {type === "DIRECT" && (
+          <div className="rounded-xl border border-zinc-800/90 bg-[#111114]/60">
+            <button
+              type="button"
+              onClick={() => setCloakingOpen((prev) => !prev)}
+              aria-expanded={cloakingOpen}
+              className="flex w-full cursor-pointer items-center justify-between gap-2 px-3.5 py-2.5 text-left text-xs font-medium text-zinc-200 transition hover:bg-zinc-900/50"
+            >
+              <span className="flex items-center gap-2">
+                <MonitorCheck className="h-3.5 w-3.5 text-violet-400" />
+                Iframe Cloaking &amp; Frame Compatibility
+                {isCloaked && <Badge variant="violet">Cloaked</Badge>}
+              </span>
+              {cloakingOpen ? (
+                <ChevronDown className="h-4 w-4 text-zinc-400" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-zinc-400" />
+              )}
+            </button>
+
+            {cloakingOpen && (
+              <div className="space-y-3 border-t border-zinc-800/80 p-3.5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <label className="flex items-center gap-2.5 text-xs text-zinc-300">
+                    <Switch
+                      checked={isCloaked}
+                      onCheckedChange={setIsCloaked}
+                      ariaLabel="Enable iframe cloaking"
+                    />
+                    <span>
+                      Keep short URL in browser bar via fullscreen iframe
+                    </span>
+                  </label>
+
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleCheckFrameCompatibility}
+                    disabled={isCheckingFrame || !destinationUrl.trim()}
+                  >
+                    {isCheckingFrame ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-400" />
+                    ) : (
+                      <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+                    )}
+                    Check Frame Compatibility
+                  </Button>
+                </div>
+
+                {frameCheckError && (
+                  <div className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-950/35 p-2.5 text-xs text-red-300">
+                    <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span>{frameCheckError}</span>
+                  </div>
+                )}
+
+                {frameCheckResult && (
+                  <div
+                    className={`space-y-1.5 rounded-xl border p-3 text-xs ${
+                      frameCheckResult.embeddable
+                        ? "border-emerald-500/30 bg-emerald-950/25 text-emerald-200"
+                        : "border-red-500/30 bg-red-950/25 text-red-200"
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      {frameCheckResult.embeddable ? (
+                        <Badge variant="emerald">
+                          <ShieldCheck className="h-3 w-3" />
+                          Embeddable in iframe
+                        </Badge>
+                      ) : (
+                        <Badge variant="danger">
+                          <ShieldAlert className="h-3 w-3" />
+                          Blocked from iframe
+                        </Badge>
+                      )}
+                      <span className="truncate font-mono text-[11px] text-zinc-400">
+                        {frameCheckResult.url}
+                      </span>
+                    </div>
+                    {frameCheckResult.reason && (
+                      <p className="text-[11px] text-red-200">
+                        {frameCheckResult.reason}
+                      </p>
+                    )}
+                    {(frameCheckResult.xFrameOptions ||
+                      frameCheckResult.frameAncestors) && (
+                      <p className="font-mono text-[10px] text-zinc-400">
+                        {frameCheckResult.xFrameOptions
+                          ? `X-Frame-Options: ${frameCheckResult.xFrameOptions}`
+                          : ""}
+                        {frameCheckResult.xFrameOptions &&
+                        frameCheckResult.frameAncestors
+                          ? " · "
+                          : ""}
+                        {frameCheckResult.frameAncestors
+                          ? `CSP frame-ancestors: ${frameCheckResult.frameAncestors}`
+                          : ""}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Collapsible Pro Section 4: HUB Theme Override (HUB only) */}
+        {type === "HUB" && (
+          <div className="rounded-xl border border-zinc-800/90 bg-[#111114]/60">
+            <button
+              type="button"
+              onClick={() => setThemeOpen((prev) => !prev)}
+              aria-expanded={themeOpen}
+              className="flex w-full cursor-pointer items-center justify-between gap-2 px-3.5 py-2.5 text-left text-xs font-medium text-zinc-200 transition hover:bg-zinc-900/50"
+            >
+              <span className="flex items-center gap-2">
+                <Palette className="h-3.5 w-3.5 text-amber-400" />
+                HUB Theme Override
+                {(themePreset || themeSurfaceTone || themeGlowIntensity) && (
+                  <Badge variant="amber">Custom Override</Badge>
+                )}
+              </span>
+              {themeOpen ? (
+                <ChevronDown className="h-4 w-4 text-zinc-400" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-zinc-400" />
+              )}
+            </button>
+
+            {themeOpen && (
+              <div className="space-y-3 border-t border-zinc-800/80 p-3.5">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="text-xs font-medium text-zinc-300">
+                      Theme Preset Override
+                    </label>
+                    <select
+                      value={themePreset}
+                      onChange={(e) =>
+                        setThemePreset(
+                          e.target.value as ThemePresetId | "custom" | "",
+                        )
+                      }
+                      aria-label="HUB theme preset override"
+                      className="mt-1 w-full rounded-xl border border-zinc-800 bg-[#09090b] px-3 py-2 text-xs text-zinc-200 focus:border-emerald-500/60 focus:outline-none"
+                    >
+                      <option value="">Inherit Global Studio Theme</option>
+                      {THEME_PRESET_LIST.map((preset) => (
+                        <option key={preset.id} value={preset.id}>
+                          {preset.label} ({preset.accentHex})
+                        </option>
+                      ))}
+                      <option value="custom">Custom Accent HEX</option>
+                    </select>
+                  </div>
+
+                  {themePreset === "custom" && (
+                    <div>
+                      <label className="text-xs font-medium text-zinc-300">
+                        Custom Accent HEX
+                      </label>
+                      <div className="mt-1 flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={
+                            isValidHexColor(themeAccentHex)
+                              ? themeAccentHex
+                              : "#10b981"
+                          }
+                          onChange={(e) => setThemeAccentHex(e.target.value)}
+                          aria-label="HUB custom accent color picker"
+                          className="h-9 w-11 cursor-pointer rounded-lg border border-zinc-800 bg-[#09090b] p-1"
+                        />
+                        <Input
+                          value={themeAccentHex}
+                          onChange={(e) => setThemeAccentHex(e.target.value)}
+                          placeholder="#10b981"
+                          aria-label="HUB custom accent HEX"
+                          className="font-mono text-xs"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="text-xs font-medium text-zinc-300">
+                      Surface Tone Override
+                    </label>
+                    <select
+                      value={themeSurfaceTone}
+                      onChange={(e) =>
+                        setThemeSurfaceTone(e.target.value as SurfaceTone | "")
+                      }
+                      aria-label="HUB surface tone override"
+                      className="mt-1 w-full rounded-xl border border-zinc-800 bg-[#09090b] px-3 py-2 text-xs capitalize text-zinc-200 focus:border-emerald-500/60 focus:outline-none"
+                    >
+                      <option value="">Inherit Global Surface</option>
+                      {SURFACE_TONES.map((tone) => (
+                        <option key={tone} value={tone}>
+                          {tone}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-medium text-zinc-300">
+                      Glow Intensity Override
+                    </label>
+                    <select
+                      value={themeGlowIntensity}
+                      onChange={(e) =>
+                        setThemeGlowIntensity(
+                          e.target.value as GlowIntensity | "",
+                        )
+                      }
+                      aria-label="HUB glow intensity override"
+                      className="mt-1 w-full rounded-xl border border-zinc-800 bg-[#09090b] px-3 py-2 text-xs capitalize text-zinc-200 focus:border-emerald-500/60 focus:outline-none"
+                    >
+                      <option value="">Inherit Global Glow</option>
+                      {GLOW_INTENSITIES.map((glow) => (
+                        <option key={glow} value={glow}>
+                          {glow}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div
+                  className="flex items-center justify-between rounded-xl border border-zinc-800 px-3 py-2 text-xs"
+                  style={{
+                    backgroundColor: previewThemeTokens.cardHex,
+                  }}
+                >
+                  <span className="text-zinc-300">HUB Accent Preview</span>
+                  <span
+                    className="rounded-lg px-2.5 py-1 font-mono text-[11px] font-semibold"
+                    style={{
+                      backgroundColor: previewThemeTokens.accentHex,
+                      color: previewThemeTokens.accentTextHex,
+                    }}
+                  >
+                    {previewThemeTokens.accentHex}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="flex items-center justify-end gap-2 border-t border-zinc-800/80 pt-4">
           <Button variant="ghost" onClick={onClose}>

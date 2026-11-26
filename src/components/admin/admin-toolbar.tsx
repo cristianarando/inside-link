@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Plus, Search, X } from "lucide-react";
+import { Activity, CheckSquare, Loader2, Plus, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/primitives";
 import type { LinkCategory, LinkStatusFilter } from "@/lib/types/link-dto";
 import { cn } from "@/lib/utils";
@@ -14,6 +14,10 @@ export interface AdminToolbarProps {
   selectedStatus: LinkStatusFilter;
   onStatusChange: (status: LinkStatusFilter) => void;
   onCreateClick: () => void;
+  onRunHealthScan?: () => void;
+  isHealthScanning?: boolean;
+  selectedCount?: number;
+  onToggleSelectAll?: () => void;
   totalLoadedCount: number;
   searchInputRef?: React.RefObject<HTMLInputElement | null>;
 }
@@ -43,6 +47,10 @@ export function AdminToolbar({
   selectedStatus,
   onStatusChange,
   onCreateClick,
+  onRunHealthScan,
+  isHealthScanning = false,
+  selectedCount = 0,
+  onToggleSelectAll,
   totalLoadedCount,
   searchInputRef,
 }: AdminToolbarProps) {
@@ -79,10 +87,42 @@ export function AdminToolbar({
           )}
         </div>
 
-        <div className="flex items-center justify-between gap-3 sm:justify-end">
+        <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-end">
           <span className="font-mono text-xs text-zinc-500">
             {totalLoadedCount} links in view
           </span>
+
+          {onToggleSelectAll && totalLoadedCount > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onToggleSelectAll}
+              className="py-1.5"
+            >
+              <CheckSquare className="h-3.5 w-3.5 text-zinc-400" />
+              {selectedCount > 0 ? `Deselect (${selectedCount})` : "Select all"}
+            </Button>
+          )}
+
+          {onRunHealthScan && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={onRunHealthScan}
+              disabled={isHealthScanning}
+              className="py-1.5"
+            >
+              {isHealthScanning ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-400" />
+              ) : (
+                <Activity className="h-3.5 w-3.5 text-emerald-400" />
+              )}
+              {isHealthScanning ? "Scanning..." : "Health Scan"}
+            </Button>
+          )}
+
           <Button onClick={onCreateClick} size="md">
             <Plus className="h-4 w-4" />
             <span>New Link</span>

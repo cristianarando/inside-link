@@ -2,18 +2,23 @@
 
 import React, { useState } from "react";
 import {
+  Activity,
   BarChart3,
+  CalendarClock,
   Check,
   Clock,
   Copy,
   CopyPlus,
   ExternalLink,
+  GitBranch,
   Globe,
   Layers,
   Lock,
+  MonitorCheck,
   Pencil,
   Pin,
   QrCode,
+  RotateCcw,
   Trash2,
 } from "lucide-react";
 import { LinkIcon } from "@/components/ui/icons";
@@ -24,9 +29,12 @@ import { cn, formatShortDate } from "@/lib/utils";
 
 export interface LinkCardProps {
   link: LinkDTO;
+  selected?: boolean;
+  onToggleSelect?: (link: LinkDTO) => void;
   onEdit: (link: LinkDTO) => void;
   onDuplicate?: (link: LinkDTO) => void;
   onDelete: (link: LinkDTO) => void;
+  onResetClicks?: (link: LinkDTO) => void;
   onToggleFlags: (
     link: LinkDTO,
     patch: { isActive?: boolean; isPinned?: boolean },
@@ -43,11 +51,54 @@ const CATEGORY_LABELS: Record<LinkDTO["category"], string> = {
   temporary: "Temporary",
 };
 
+function renderHealthBadge(link: LinkDTO) {
+  if (!link.healthStatus) return null;
+  const latencySuffix =
+    link.healthLatencyMs !== null ? ` · ${link.healthLatencyMs}ms` : "";
+
+  switch (link.healthStatus) {
+    case "healthy":
+      return (
+        <Badge variant="emerald">
+          <Activity className="h-3 w-3" />
+          Healthy {link.healthStatusCode ?? 200}
+          {latencySuffix}
+        </Badge>
+      );
+    case "redirect":
+      return (
+        <Badge variant="amber">
+          <Activity className="h-3 w-3" />
+          Redirect {link.healthStatusCode ?? 302}
+          {latencySuffix}
+        </Badge>
+      );
+    case "timeout":
+      return (
+        <Badge variant="danger">
+          <Activity className="h-3 w-3" />
+          Timeout
+        </Badge>
+      );
+    case "broken":
+    default:
+      return (
+        <Badge variant="danger">
+          <Activity className="h-3 w-3" />
+          Broken{link.healthStatusCode ? ` ${link.healthStatusCode}` : ""}
+        </Badge>
+      );
+  }
+}
+
 export function LinkCard({
   link,
+  selected = false,
+  onToggleSelect,
   onEdit,
   onDuplicate,
   onDelete,
+  onResetClicks,
   onToggleFlags,
   onOpenQr,
   onOpenAnalytics,
@@ -77,15 +128,26 @@ export function LinkCard({
     <article
       className={cn(
         "obsidian-surface group relative flex min-w-0 max-w-full flex-col justify-between overflow-hidden rounded-2xl border p-4 transition",
-        link.isPinned
-          ? "border-amber-500/35 bg-[#141418] shadow-lg"
-          : "border-zinc-800/80 hover:border-zinc-700/90 hover:bg-[#16161b]",
+        selected
+          ? "border-emerald-500/60 bg-emerald-950/15 ring-1 ring-emerald-500/35"
+          : link.isPinned
+            ? "border-amber-500/35 bg-[#141418] shadow-lg"
+            : "border-zinc-800/80 hover:border-zinc-700/90 hover:bg-[#16161b]",
         (!link.isActive || link.isExpired) && "opacity-75",
       )}
     >
       <div className="min-w-0">
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="flex min-w-0 flex-1 items-center gap-2.5">
+            {onToggleSelect && (
+              <input
+                type="checkbox"
+                checked={selected}
+                onChange={() => onToggleSelect(link)}
+                aria-label={`Select /${link.slug}`}
+                className="h-4 w-4 shrink-0 cursor-pointer rounded border-zinc-700 bg-[#09090b] accent-emerald-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
+              />
+            )}
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-zinc-800 bg-[#09090b] text-zinc-200 transition group-hover:border-emerald-500/35 group-hover:text-emerald-300">
               <LinkIcon name={link.icon} className="h-4 w-4" />
             </div>
@@ -107,7 +169,7 @@ export function LinkCard({
                   onClick={handleCopy}
                   title="Copy short link"
                   aria-label={`Copy short link ${canonicalHost}/${link.slug}`}
-                  className="inline-flex min-w-0 max-w-full cursor-pointer items-center gap-1 font-mono text-xs text-zinc-300 hover:text-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 rounded"
+                  className="inline-flex min-w-0 max-w-full cursor-pointer items-center gap-1 rounded font-mono text-xs text-zinc-300 hover:text-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
                 >
                   <span className="min-w-0 truncate">
                     {canonicalHost}/{link.slug}
@@ -143,7 +205,7 @@ export function LinkCard({
 
         <p className="mt-3 truncate font-mono text-[11px] text-zinc-400">
           {link.type === "HUB"
-            ? `Project HUB · ${link.hubLinks?.length ?? 0} buttons configured`
+            ? `Project HUB · ${link.hubLinks?.length ?? 0} blocks configured`
             : link.destinationUrl}
         </p>
 
@@ -185,6 +247,29 @@ export function LinkCard({
               PIN Locked
             </Badge>
           )}
+
+          {link.isCloaked && (
+            <Badge variant="violet">
+              <MonitorCheck className="h-3 w-3" />
+              Cloaked
+            </Badge>
+          )}
+
+          {link.routingRules.length > 0 && (
+            <Badge variant="sky">
+              <GitBranch className="h-3 w-3" />
+              Routing ({link.routingRules.length})
+            </Badge>
+          )}
+
+          {link.isScheduled && link.startsAt && (
+            <Badge variant="sky">
+              <CalendarClock className="h-3 w-3" />
+              Launches {formatShortDate(link.startsAt)}
+            </Badge>
+          )}
+
+          {renderHealthBadge(link)}
 
           {link.isExpired ? (
             <Badge variant="danger">
@@ -264,6 +349,18 @@ export function LinkCard({
                 className="cursor-pointer rounded-lg p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
               >
                 <QrCode className="h-3.5 w-3.5" />
+              </button>
+            )}
+
+            {onResetClicks && (
+              <button
+                type="button"
+                onClick={() => onResetClicks(link)}
+                title="Reset click telemetry"
+                aria-label={`Reset clicks for ${link.slug}`}
+                className="cursor-pointer rounded-lg p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
               </button>
             )}
 
