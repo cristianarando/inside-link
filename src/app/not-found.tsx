@@ -9,7 +9,7 @@ export default function NotFoundPage() {
   return (
     <main className="bg-obsidian-glow flex min-h-screen flex-col items-center justify-center px-4 text-center text-zinc-100">
       <div className="obsidian-surface-elevated w-full max-w-md rounded-2xl border border-zinc-800/90 p-8 backdrop-blur-xl">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-emerald-500/25 bg-emerald-500/10 text-emerald-300">
+        <div className="il-accent-pill mx-auto flex h-12 w-12 items-center justify-center rounded-xl border">
           <Link2Off className="h-6 w-6" />
         </div>
 
@@ -30,14 +30,14 @@ export default function NotFoundPage() {
         <div className="mt-7 flex flex-col gap-2.5 sm:flex-row sm:justify-center">
           <Link
             href="/"
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-zinc-950 transition hover:bg-emerald-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
+            className="il-accent-btn inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(var(--il-accent-rgb),0.55)]"
           >
             <Compass className="h-4 w-4" />
             Browse public links
           </Link>
           <a
             href={portfolioUrl}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-800 bg-[#16161b] px-4 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-zinc-700 hover:bg-zinc-800 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-800 bg-[var(--il-card)] px-4 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-zinc-700 hover:bg-zinc-800 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(var(--il-accent-rgb),0.55)]"
           >
             <ArrowLeft className="h-4 w-4" />
             Go to portfolio
