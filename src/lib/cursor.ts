@@ -22,7 +22,7 @@ export function decodeLinkCursor(
   }
 
   try {
-    // Restaurar base64 estándar desde base64url
+    // Restore standard Base64 padding from Base64URL
     let base64 = cursorStr.replace(/-/g, "+").replace(/_/g, "/");
     while (base64.length % 4) {
       base64 += "=";

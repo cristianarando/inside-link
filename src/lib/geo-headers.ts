@@ -25,7 +25,7 @@ export function extractTrafficMetadata(
     return val || null;
   };
 
-  // 1. País (prioridad: x-vercel-ip-country -> cf-ipcountry -> 'XX')
+  // 1. Country (priority: x-vercel-ip-country -> cf-ipcountry -> 'XX')
   let country = (
     getHeader("x-vercel-ip-country") ||
     getHeader("cf-ipcountry") ||
@@ -35,7 +35,7 @@ export function extractTrafficMetadata(
     country = "XX";
   }
 
-  // 2. Ciudad (x-vercel-ip-city -> cf-ipcity -> null)
+  // 2. City (x-vercel-ip-city -> cf-ipcity -> null)
   let city: string | null = null;
   const rawCity = getHeader("x-vercel-ip-city") || getHeader("cf-ipcity");
   if (rawCity) {
@@ -49,7 +49,7 @@ export function extractTrafficMetadata(
   // 3. User-Agent
   const ua = getHeader("user-agent") || "";
 
-  // 4. Dispositivo
+  // 4. Device
   let device: "desktop" | "mobile" | "tablet" | "bot" = "desktop";
   if (isSocialPreviewBot(ua) || /bot|crawler|spider/i.test(ua)) {
     device = "bot";
@@ -59,7 +59,7 @@ export function extractTrafficMetadata(
     device = "mobile";
   }
 
-  // 5. Sistema Operativo
+  // 5. Operating System
   let os: "Windows" | "macOS" | "Android" | "iOS" | "Linux" | "Other" = "Other";
   if (/windows/i.test(ua)) os = "Windows";
   else if (/android/i.test(ua)) os = "Android";
@@ -67,7 +67,7 @@ export function extractTrafficMetadata(
   else if (/macintosh|mac os x/i.test(ua)) os = "macOS";
   else if (/linux/i.test(ua)) os = "Linux";
 
-  // 6. Navegador
+  // 6. Browser
   let browser: "Chrome" | "Safari" | "Firefox" | "Edge" | "Other" = "Other";
   if (/edg/i.test(ua)) browser = "Edge";
   else if (/firefox|fxios/i.test(ua)) browser = "Firefox";
@@ -86,7 +86,7 @@ export function extractTrafficMetadata(
     }
   }
 
-  // 8. Query Param Ref (?ref= o ?utm_source=)
+  // 8. Query parameter attribution (?ref= or ?utm_source=)
   let queryParamRef: string | null = null;
   if (searchParams) {
     const getParam = (key: string): string | null => {

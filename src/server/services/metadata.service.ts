@@ -17,6 +17,22 @@ export interface MetadataPreviewResult {
   icon: SuggestedLinkIcon;
 }
 
+export interface FrameCompatibilityResult {
+  url: string;
+  embeddable: boolean;
+  reason: string | null;
+  xFrameOptions: string | null;
+  frameAncestors: string | null;
+}
+
+export interface LinkHealthCheckResult {
+  status: "healthy" | "redirect" | "broken" | "timeout";
+  statusCode: number | null;
+  latencyMs: number;
+  checkedAt: string;
+  error?: string;
+}
+
 export type MetadataServiceErrorCode =
   | "VALIDATION_ERROR"
   | "SSRF_BLOCKED"
@@ -41,6 +57,7 @@ export type LookupAddressFn = (
 
 const MAX_HTML_BYTES = 64 * 1024;
 const FETCH_TIMEOUT_MS = 4000;
+const HEALTH_TIMEOUT_MS = 4500;
 const MAX_REDIRECT_HOPS = 2;
 
 const BLOCKED_HOSTNAMES = new Set(["localhost", "localhost.localdomain"]);
@@ -515,4 +532,306 @@ export async function previewUrlMetadata(
     description: cleanText(rawDescription, 500),
     icon,
   };
+}
+
+function parseFrameAncestorsDirectives(cspHeader: string | null): string[] {
+  if (!cspHeader) return [];
+  const directives: string[] = [];
+  for (const rawPart of cspHeader.split(/[;,]/)) {
+    const trimmed = rawPart.trim();
+    const match = /^frame-ancestors(?:\s+([\s\S]*))?$/i.exec(trimmed);
+    if (match) {
+      directives.push((match[1] ?? "").trim());
+    }
+  }
+  return directives;
+}
+
+function evaluateFrameAncestorsRestriction(
+  directives: string[],
+): string | null {
+  for (const directive of directives) {
+    const tokens = directive
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((token) => token.toLowerCase());
+
+    if (tokens.length === 0 || tokens.includes("'none'")) {
+      return "Target site forbids iframe embedding via Content-Security-Policy (frame-ancestors 'none').";
+    }
+
+    const allowsWildcardOrHttps =
+      tokens.includes("*") || tokens.includes("https:");
+    if (!allowsWildcardOrHttps) {
+      if (tokens.length === 1 && tokens[0] === "'self'") {
+        return "Target site restricts iframe embedding to its own origin via Content-Security-Policy (frame-ancestors 'self').";
+      }
+      return `Target site restricts iframe embedding via Content-Security-Policy (frame-ancestors ${directive}).`;
+    }
+  }
+  return null;
+}
+
+function evaluateXFrameOptionsRestriction(
+  xFrameOptions: string | null,
+): string | null {
+  if (!xFrameOptions) return null;
+  const parts = xFrameOptions
+    .split(",")
+    .map((part) => part.trim().toUpperCase())
+    .filter(Boolean);
+
+  for (const part of parts) {
+    if (part === "DENY" || part.startsWith("DENY ")) {
+      return "Target site forbids iframe embedding (X-Frame-Options: DENY).";
+    }
+    if (part === "SAMEORIGIN" || part.startsWith("SAMEORIGIN ")) {
+      return "Target site only allows same-origin iframe embedding (X-Frame-Options: SAMEORIGIN).";
+    }
+    if (part.startsWith("ALLOW-FROM")) {
+      return "Target site restricts iframe embedding to a specific origin (X-Frame-Options: ALLOW-FROM).";
+    }
+  }
+  return null;
+}
+
+/**
+ * Probes a destination URL with SSRF-safe DNS/IP validation and manual redirect checks
+ * to determine whether browsers allow embedding it inside a full-screen cloaked iframe.
+ */
+export async function checkUrlFrameCompatibility(
+  rawUrl: string,
+  deps: PreviewMetadataDeps = {},
+): Promise<FrameCompatibilityResult> {
+  const lookupFn = deps.lookup ?? dnsLookup;
+  const fetchFn = deps.fetchFn ?? fetch;
+
+  let currentUrl = await assertSafeMetadataUrl(rawUrl, lookupFn);
+  let response: Response | null = null;
+
+  for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
+    try {
+      response = await fetchFn(currentUrl.toString(), {
+        method: "HEAD",
+        redirect: "manual",
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        headers: {
+          "User-Agent": "InsideLink-FrameScanner/2.0",
+          Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1",
+        },
+      });
+
+      if (response.status === 405 || response.status === 501) {
+        await response.body?.cancel().catch(() => undefined);
+        response = await fetchFn(currentUrl.toString(), {
+          method: "GET",
+          redirect: "manual",
+          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+          headers: {
+            "User-Agent": "InsideLink-FrameScanner/2.0",
+            Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1",
+          },
+        });
+      }
+    } catch (err) {
+      const isTimeout = err instanceof Error && err.name === "TimeoutError";
+      throw new MetadataServiceError(
+        "FETCH_FAILED",
+        isTimeout
+          ? "Timed out checking frame compatibility for target URL"
+          : "Failed to check frame compatibility for target URL",
+        502,
+      );
+    }
+
+    await response.body?.cancel().catch(() => undefined);
+
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get("location");
+      if (!location) {
+        throw new MetadataServiceError(
+          "FETCH_FAILED",
+          "Redirect missing Location header",
+          502,
+        );
+      }
+      if (hop === MAX_REDIRECT_HOPS) {
+        throw new MetadataServiceError(
+          "FETCH_FAILED",
+          "Too many redirects",
+          502,
+        );
+      }
+
+      let nextUrlString: string;
+      try {
+        nextUrlString = new URL(location, currentUrl).toString();
+      } catch {
+        throw new MetadataServiceError(
+          "FETCH_FAILED",
+          "Invalid redirect URL",
+          502,
+        );
+      }
+
+      currentUrl = await assertSafeMetadataUrl(nextUrlString, lookupFn);
+      continue;
+    }
+
+    break;
+  }
+
+  if (!response) {
+    throw new MetadataServiceError(
+      "FETCH_FAILED",
+      "Failed to check frame compatibility for target URL",
+      502,
+    );
+  }
+
+  const rawXfo = response.headers.get("x-frame-options");
+  const xFrameOptions =
+    rawXfo && rawXfo.trim().length > 0 ? rawXfo.trim() : null;
+
+  const cspDirectives = parseFrameAncestorsDirectives(
+    response.headers.get("content-security-policy"),
+  );
+  const frameAncestors =
+    cspDirectives.length > 0 ? cspDirectives.join("; ") : null;
+
+  const cspReason = evaluateFrameAncestorsRestriction(cspDirectives);
+  if (cspReason) {
+    return {
+      url: currentUrl.toString(),
+      embeddable: false,
+      reason: cspReason,
+      xFrameOptions,
+      frameAncestors,
+    };
+  }
+
+  const xfoReason = evaluateXFrameOptionsRestriction(xFrameOptions);
+  if (xfoReason) {
+    return {
+      url: currentUrl.toString(),
+      embeddable: false,
+      reason: xfoReason,
+      xFrameOptions,
+      frameAncestors,
+    };
+  }
+
+  if (response.status >= 400) {
+    return {
+      url: currentUrl.toString(),
+      embeddable: false,
+      reason: `Target URL responded with HTTP status ${response.status}.`,
+      xFrameOptions,
+      frameAncestors,
+    };
+  }
+
+  return {
+    url: currentUrl.toString(),
+    embeddable: true,
+    reason: null,
+    xFrameOptions,
+    frameAncestors,
+  };
+}
+
+/**
+ * Performs an SSRF-safe single-hop HTTP GET health probe, canceling the response body
+ * as soon as headers arrive and classifying latency and status code.
+ */
+export async function checkUrlHealth(
+  rawUrl: string,
+  deps: PreviewMetadataDeps = {},
+): Promise<LinkHealthCheckResult> {
+  const lookupFn = deps.lookup ?? dnsLookup;
+  const fetchFn = deps.fetchFn ?? fetch;
+  const startedAt = performance.now();
+
+  let safeUrl: URL;
+  try {
+    safeUrl = await assertSafeMetadataUrl(rawUrl, lookupFn);
+  } catch (err) {
+    if (err instanceof MetadataServiceError && err.code === "FETCH_FAILED") {
+      return {
+        status: "broken",
+        statusCode: null,
+        latencyMs: Math.max(0, Math.round(performance.now() - startedAt)),
+        checkedAt: new Date().toISOString(),
+        error: err.message,
+      };
+    }
+    throw err;
+  }
+
+  try {
+    const response = await fetchFn(safeUrl.toString(), {
+      method: "GET",
+      redirect: "manual",
+      signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
+      headers: {
+        "User-Agent": "InsideLink-HealthProbe/2.0",
+        Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
+      },
+    });
+
+    await response.body?.cancel().catch(() => undefined);
+    const latencyMs = Math.max(0, Math.round(performance.now() - startedAt));
+    const checkedAt = new Date().toISOString();
+
+    if (response.status >= 200 && response.status <= 299) {
+      return {
+        status: "healthy",
+        statusCode: response.status,
+        latencyMs,
+        checkedAt,
+      };
+    }
+
+    if (response.status >= 300 && response.status <= 399) {
+      return {
+        status: "redirect",
+        statusCode: response.status,
+        latencyMs,
+        checkedAt,
+      };
+    }
+
+    return {
+      status: "broken",
+      statusCode: response.status,
+      latencyMs,
+      checkedAt,
+      error: `Target URL responded with HTTP ${response.status}`,
+    };
+  } catch (err) {
+    const latencyMs = Math.max(0, Math.round(performance.now() - startedAt));
+    const checkedAt = new Date().toISOString();
+    const isTimeout = err instanceof Error && err.name === "TimeoutError";
+
+    if (isTimeout) {
+      return {
+        status: "timeout",
+        statusCode: null,
+        latencyMs,
+        checkedAt,
+        error: "Timed out probing target URL",
+      };
+    }
+
+    return {
+      status: "broken",
+      statusCode: null,
+      latencyMs,
+      checkedAt,
+      error:
+        err instanceof Error && err.message
+          ? err.message
+          : "Failed to connect to target URL",
+    };
+  }
 }

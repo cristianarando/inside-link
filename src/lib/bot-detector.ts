@@ -14,6 +14,9 @@ const SOCIAL_BOT_PATTERNS = [
   /applebot/i,
 ];
 
+/**
+ * Detects known social media and messaging preview crawlers by User-Agent.
+ */
 export function isSocialPreviewBot(
   userAgent: string | null | undefined,
 ): boolean {
@@ -23,6 +26,9 @@ export function isSocialPreviewBot(
   return SOCIAL_BOT_PATTERNS.some((pattern) => pattern.test(userAgent));
 }
 
+/**
+ * Detects speculative browser or router prefetch requests so they do not inflate click metrics.
+ */
 export function isPrefetchRequest(
   headers: Headers | Record<string, string | string[] | undefined>,
 ): boolean {

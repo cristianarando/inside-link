@@ -1,5 +1,5 @@
 export const RESERVED_SLUGS = new Set([
-  // 1. Rutas del propio sistema InsideLink
+  // 1. Core InsideLink application routes
   "admin",
   "dashboard",
   "login",
@@ -14,7 +14,7 @@ export const RESERVED_SLUGS = new Set([
   "qr",
   "analytics",
   "settings",
-  // 2. Rutas técnicas, framework Next.js y archivos raíz
+  // 2. Framework internals, static assets, and root metadata endpoints
   "_next",
   "_il",
   "_vercel",
@@ -65,7 +65,7 @@ export const FORBIDDEN_FILE_EXTENSIONS = new Set([
 export function isReservedSlug(slug: string): boolean {
   const normalized = slug.trim().toLowerCase();
 
-  // Si contiene un punto, verificar si tiene extensión de archivo
+  // Block slugs ending with a forbidden static file extension
   if (normalized.includes(".")) {
     const ext = normalized.split(".").pop();
     if (ext && FORBIDDEN_FILE_EXTENSIONS.has(ext)) {
@@ -73,7 +73,7 @@ export function isReservedSlug(slug: string): boolean {
     }
   }
 
-  // Comprobar si está en la lista de slugs reservados del sistema InsideLink
+  // Check against the reserved InsideLink system slug set
   if (RESERVED_SLUGS.has(normalized)) {
     return true;
   }
